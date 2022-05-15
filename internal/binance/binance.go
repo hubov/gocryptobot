@@ -6,6 +6,7 @@ import (
     "net/http"
     "io/ioutil"
     "encoding/json"
+    "time"
 )
 
 type Configuration struct {
@@ -32,14 +33,44 @@ func init() {
     }
 }
 
-func main() {
-    url := configuration.Host + "/api/v3/ping"
-    fmt.Println("Hello, " + url)
+func decodeJSON(input []byte) (map[string]interface{}) {
+    var data map[string]interface{}
+    err := json.Unmarshal(input, &data)
+    if err != nil {
+        panic(err)
+    }
+    return data
+}
 
-    req, _ := http.NewRequest("GET", url, nil)
+func queryAPI(url string) ([]byte) {
+    req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
+    req.Header.Add("Accept": "application/json")
+    req.Header.Add("X-MBX-APIKEY", configuration.api_key)
+
     res, _ := http.DefaultClient.Do(req)
     defer res.Body.Close()
     body, _ := ioutil.ReadAll(res.Body)
-    fmt.Println(string(body))
+
+    return body
+}
+
+func ping() ([]byte) {
+    return queryAPI("/api/v3/ping")
+}
+
+func serverTime() (int64) {
+    result := queryAPI("/api/v3/time")
+    data := decodeJSON(result)
+    serverTime := data["serverTime"].(float64)
+    resultTime := int64(serverTime)
+
+    return resultTime
+}
+
+func main() {
+    serverTime := serverTime()
+    localTime := time.Now().UnixMilli()
+
+    fmt.Println(serverTime, localTime, localTime - serverTime)
 
 }
