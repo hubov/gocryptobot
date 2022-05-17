@@ -1,4 +1,4 @@
-package main
+package binance
 
 import (
     "os"
@@ -11,7 +11,6 @@ import (
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
-    "log"
 )
 
 type (
@@ -40,7 +39,7 @@ type (
 var configuration Configuration
 
 func init() {
-    file, err := os.Open("../../config/config.json")
+    file, err := os.Open("config/config.json")
     if err != nil {
         fmt.Println("File reading error", err)
         return
@@ -158,18 +157,4 @@ func connectionDelay() (int64) {
     fmt.Println(serverTime, localTime)
 
     return diff
-}
-
-func main() {
-    defaultTimeout := time.Second * 10
-    client := ApiClient(defaultTimeout)
-    wallet, err := client.GetWallet()
-    if err != nil {
-        log.Fatal(err)
-    }
-    for i, coin := range wallet {
-        if (i >= 0) {
-            fmt.Println(coin)
-        }
-    }
 }
