@@ -27,13 +27,13 @@ type (
         Name string
     }
     Wallet struct {
-        Coin string `json:coin`
-        Free string `json:free`
-        Freeze string `json:freeze`
-        Locked string `json:locked`
-        Name string `json:name`
-        Storage string `json:storage`
-        Withdrawing string `json:withdrawing`
+        Coin string `json:"coin"`
+        Name string `json:"name"`
+        Free float64 `json:"free,string"`
+        Freeze float64 `json:"freeze,string"`
+        Locked float64 `json:"locked,string"`
+        Storage float64 `json:"storage,string"`
+        Withdrawing float64 `json:"withdrawing,string"`
     }
 )
 
@@ -91,7 +91,8 @@ func (c *Client) do(method, endpoint string, params map[string]string) (*http.Re
     return c.httpClient.Do(req) 
 }
 
-func (c *Client) GetWallet() (resp []Wallet, err error) {
+func (c *Client) GetWallet() (result []Wallet, err error) {
+    var resp []Wallet
     res, err := c.do(http.MethodGet, "/sapi/v1/capital/config/getall", nil)
     if err != nil {
         return
@@ -103,6 +104,14 @@ func (c *Client) GetWallet() (resp []Wallet, err error) {
     }
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
+    }
+    for i, coin := range resp {
+        if (i >= 0) {
+            sum := coin.Free + coin.Freeze + coin.Locked + coin.Storage + coin.Withdrawing
+            if (sum > 0) {
+                result = append(result, coin)
+            }
+        }
     }
     return
 }
@@ -145,7 +154,10 @@ func serverTime() (int64) {
 func connectionDelay() (int64) {
     serverTime := serverTime()
     localTime := time.Now().UnixMilli()
-    fmt.Println(serverTime, localTime, localTime - serverTime)
+    diff := localTime - serverTime
+    fmt.Println(serverTime, localTime)
+
+    return diff
 }
 
 func main() {
@@ -155,5 +167,9 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Println(wallet)
+    for i, coin := range wallet {
+        if (i >= 0) {
+            fmt.Println(coin)
+        }
+    }
 }
