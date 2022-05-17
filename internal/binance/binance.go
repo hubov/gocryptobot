@@ -25,6 +25,33 @@ type (
         Api_secret string
         Name string
     }
+    SpotAccount struct {
+        CanTrade bool `json:"canTrade"`
+        TakerCommission int64 `json:"takerCommission"`
+        Balances []SpotAsset
+    }
+    SpotAsset struct {
+        Asset string `json:"asset"`
+        Free float64 `json:"free,string"`
+        Locked float64 `json:"locked,string"`
+    }
+    MarginAccount struct {
+        BorrowEnabled bool `json:"borrowEnabled"`
+        MarginLevel float64 `json:"marginLevel,string"`
+        TotalAssetOfBtc float64 `json:"totalAssetOfBtc,string"`
+        TotalLiabilityOfBtc float64 `json:"totalLiabilityOfBtc,string"`
+        TotalNetAssetOfBtc float64 `json:"totalNetAssetOfBtc,string"`
+        TradeEnabled bool `json:"tradeEnabled"`
+        UserAssets []MarginAsset
+    }
+    MarginAsset struct {
+        Asset string `json:"asset"`
+        Borrowed float64 `json:"borrowed,string"`
+        Free float64 `json:"free,string"`
+        Interest float64 `json:"interest,string"`
+        Locked float64 `json:"locked,string"`
+        NetAsset float64 `json:"netAsset,string"`
+    }
     Wallet struct {
         Coin string `json:"coin"`
         Name string `json:"name"`
@@ -90,6 +117,46 @@ func (c *Client) do(method, endpoint string, params map[string]string) (*http.Re
     return c.httpClient.Do(req) 
 }
 
+func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
+    account, err := c.SpotAccount()
+    resp = account.Balances
+
+    return
+}
+
+func (c *Client) SpotAccount() (resp SpotAccount, err error) {
+    res, err := c.do(http.MethodGet, "/api/v3/account", nil)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+    return
+}
+
+func (c *Client) MarginAccount() (result MarginAccount, err error) {
+    var resp MarginAccount
+    res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+    return
+}
+
 func (c *Client) GetWallet() (result []Wallet, err error) {
     var resp []Wallet
     res, err := c.do(http.MethodGet, "/sapi/v1/capital/config/getall", nil)
@@ -115,7 +182,7 @@ func (c *Client) GetWallet() (result []Wallet, err error) {
     return
 }
 
-func queryAPI(url string) ([]byte) {
+func QueryAPI(url string) ([]byte) {
     req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
     req.Header.Add("Accept", "application/json")
     req.Header.Add("X-MBX-APIKEY", configuration.Api_key)
@@ -128,7 +195,7 @@ func queryAPI(url string) ([]byte) {
     return body
 }
 
-func decodeJSON(input []byte) (map[string]interface{}) {
+func DecodeJSON(input []byte) (map[string]interface{}) {
     var data map[string]interface{}
     err := json.Unmarshal(input, &data)
     if err != nil {
@@ -137,21 +204,21 @@ func decodeJSON(input []byte) (map[string]interface{}) {
     return data
 }
 
-func ping() ([]byte) {
-    return queryAPI("/api/v3/ping")
+func Ping() ([]byte) {
+    return QueryAPI("/api/v3/ping")
 }
 
-func serverTime() (int64) {
-    result := queryAPI("/api/v3/time")
-    data := decodeJSON(result)
+func ServerTime() (int64) {
+    result := QueryAPI("/api/v3/time")
+    data := DecodeJSON(result)
     serverTime := data["serverTime"].(float64)
     resultTime := int64(serverTime)
 
     return resultTime
 }
 
-func connectionDelay() (int64) {
-    serverTime := serverTime()
+func ConnectionDelay() (int64) {
+    serverTime := ServerTime()
     localTime := time.Now().UnixMilli()
     diff := localTime - serverTime
     fmt.Println(serverTime, localTime)

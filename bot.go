@@ -10,7 +10,7 @@ import (
 func main() {
     defaultTimeout := time.Second * 10
     client := binance.ApiClient(defaultTimeout)
-    wallet, err := client.GetWallet()
+    wallet, err := client.SpotBalance()
     if err != nil {
         log.Fatal(err)
     }
