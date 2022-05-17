@@ -1,6 +1,12 @@
 {
 	"exchange": "binance",
+	"account": "margin",
 	"host": "https://api.binance.com",
 	"api_key": "",
-	"api_secret": ""
+	"api_secret": "",
+	"trade": {
+		"base_symbol": "",
+		"quote_symbol": "",
+		"interval": ""
+	}
 }

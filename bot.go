@@ -14,9 +14,16 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    for i, coin := range wallet {
+    for _, coin := range wallet {
+        fmt.Println(coin)
+    }
+    candles, err := client.GetCandles()
+    if err != nil {
+        log.Fatal(err)
+    }
+    for i, candle := range candles {
         if (i >= 0) {
-            fmt.Println(coin)
+            fmt.Println(candle)
         }
     }
 }

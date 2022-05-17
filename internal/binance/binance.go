@@ -15,15 +15,23 @@ import (
 
 type (
     Client struct {
-        httpClient *http.Client
-        host string
+        HttpClient *http.Client
+        Host string
         Timeout time.Duration
+        Symbol string
+        Interval string
     }
     Configuration struct {
         Host string
-        Api_key string
-        Api_secret string
+        ApiKey string `json:"api_key"`
+        ApiSecret string `json:"api_secret"`
         Name string
+        Trade Trade
+    }
+    Trade struct {
+        BaseSymbol string `json:"base_symbol"`
+        QuoteSymbol string `json:"quote_symbol"`
+        Interval string
     }
     SpotAccount struct {
         CanTrade bool `json:"canTrade"`
@@ -61,6 +69,20 @@ type (
         Storage float64 `json:"storage,string"`
         Withdrawing float64 `json:"withdrawing,string"`
     }
+    Candle struct {
+        OpenTime int64
+        Open float64
+        High float64
+        Low float64
+        Close float64
+        Volume float64
+        CloseTime int64
+        QuoteAssetVolume float64
+        TradesNumber int64
+        TakerBuyBaseAssetVolume float64
+        TakerBuyQuoteAssetVolume float64
+        Ignore float64
+    }
 )
 
 var configuration Configuration
@@ -85,36 +107,42 @@ func ApiClient(timeout time.Duration) *Client {
         Timeout: timeout,
     }
     return &Client{
-        httpClient: client,
-        host: configuration.Host,
+        HttpClient: client,
+        Host: configuration.Host,
+        Symbol: configuration.Trade.BaseSymbol + configuration.Trade.QuoteSymbol,
+        Interval: configuration.Trade.Interval,
     }
 }
 
-func (c *Client) do(method, endpoint string, params map[string]string) (*http.Response, error) {
-    baseURL := fmt.Sprintf("%s%s", c.host, endpoint)
+func (c *Client) do(method, endpoint string, params map[string]string, auth bool) (*http.Response, error) {
+    baseURL := fmt.Sprintf("%s%s", c.Host, endpoint)
     req, err := http.NewRequest(method, baseURL, nil)
     if err != nil {
         return nil, err
     }
-    req.Header.Add("Accept", "application/json")
-    req.Header.Add("X-MBX-APIKEY", configuration.Api_key)
-
     if params == nil {
         params = make(map[string]string)
     }
-    params["timestamp"] = strconv.FormatInt(time.Now().UnixMilli(), 10)
+    req.Header.Add("Accept", "application/json")
+    if auth == true {
+        req.Header.Add("X-MBX-APIKEY", configuration.ApiKey)
+        params["timestamp"] = strconv.FormatInt(time.Now().UnixMilli(), 10)
+    }
+    
     q := req.URL.Query()
     for key, val := range params {
         q.Set(key, val)
     }
     req.URL.RawQuery = q.Encode()
 
-    h := hmac.New(sha256.New, []byte(configuration.Api_secret))
-    h.Write([]byte(req.URL.RawQuery))
-    signature := hex.EncodeToString(h.Sum(nil))
-    req.URL.RawQuery = req.URL.RawQuery + "&signature=" + signature
+    if auth == true {
+        h := hmac.New(sha256.New, []byte(configuration.ApiSecret))
+        h.Write([]byte(req.URL.RawQuery))
+        signature := hex.EncodeToString(h.Sum(nil))
+        req.URL.RawQuery = req.URL.RawQuery + "&signature=" + signature
+    }
 
-    return c.httpClient.Do(req) 
+    return c.HttpClient.Do(req) 
 }
 
 func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
@@ -124,8 +152,42 @@ func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
     return
 }
 
+func StrToFloat(input string) (res float64) {
+    res, err := strconv.ParseFloat(input, 64);
+    if err != nil {
+        panic(err)
+    }
+    return
+}
+
+func (c *Client) GetCandles() (resp []Candle, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    params["interval"] = c.Interval
+    res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    bodyString := string(body)
+    fmt.Println(bodyString)
+    var CandlesArray [][]interface{}
+    if err = json.Unmarshal(body, &CandlesArray); err != nil {
+        return resp, err
+    }
+    fmt.Println(CandlesArray)
+    for _, candle := range CandlesArray {
+        resp = append(resp, Candle{OpenTime: int64(candle[0].(float64)), Open: StrToFloat(candle[1].(string)), High: StrToFloat(candle[2].(string)), Low: StrToFloat(candle[3].(string)), Close: StrToFloat(candle[4].(string)), Volume: StrToFloat(candle[5].(string)), CloseTime: int64(candle[6].(float64)), QuoteAssetVolume: StrToFloat(candle[7].(string)), TradesNumber: int64(candle[8].(float64)), TakerBuyBaseAssetVolume: StrToFloat(candle[9].(string)), TakerBuyQuoteAssetVolume: StrToFloat(candle[10].(string)), Ignore: StrToFloat(candle[11].(string)) })
+    }
+    return
+}
+
 func (c *Client) SpotAccount() (resp SpotAccount, err error) {
-    res, err := c.do(http.MethodGet, "/api/v3/account", nil)
+    res, err := c.do(http.MethodGet, "/api/v3/account", nil, true)
     if err != nil {
         return
     }
@@ -142,7 +204,7 @@ func (c *Client) SpotAccount() (resp SpotAccount, err error) {
 
 func (c *Client) MarginAccount() (result MarginAccount, err error) {
     var resp MarginAccount
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil)
+    res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil, true)
     if err != nil {
         return
     }
@@ -159,7 +221,7 @@ func (c *Client) MarginAccount() (result MarginAccount, err error) {
 
 func (c *Client) GetWallet() (result []Wallet, err error) {
     var resp []Wallet
-    res, err := c.do(http.MethodGet, "/sapi/v1/capital/config/getall", nil)
+    res, err := c.do(http.MethodGet, "/sapi/v1/capital/config/getall", nil, true)
     if err != nil {
         return
     }
@@ -171,12 +233,10 @@ func (c *Client) GetWallet() (result []Wallet, err error) {
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
-    for i, coin := range resp {
-        if (i >= 0) {
-            sum := coin.Free + coin.Freeze + coin.Locked + coin.Storage + coin.Withdrawing
-            if (sum > 0) {
-                result = append(result, coin)
-            }
+    for _, coin := range resp {
+        sum := coin.Free + coin.Freeze + coin.Locked + coin.Storage + coin.Withdrawing
+        if (sum > 0) {
+            result = append(result, coin)
         }
     }
     return
@@ -185,7 +245,7 @@ func (c *Client) GetWallet() (result []Wallet, err error) {
 func QueryAPI(url string) ([]byte) {
     req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
     req.Header.Add("Accept", "application/json")
-    req.Header.Add("X-MBX-APIKEY", configuration.Api_key)
+    req.Header.Add("X-MBX-APIKEY", configuration.ApiKey)
 
 
     res, _ := http.DefaultClient.Do(req)
