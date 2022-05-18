@@ -114,6 +114,21 @@ func ApiClient(timeout time.Duration) *Client {
     }
 }
 
+func (c *Candle) Set(openTime int64, open, high, low, close, volume float64, closeTime int64, quoteAssetVolume float64, tradesNumber int64, takerBuyBaseAssetVolume, takerBuyQuoteAssetVolume, ignore float64) {
+    c.OpenTime = openTime
+    c.Open = open
+    c.High = high
+    c.Low = low
+    c.Close = close
+    c.Volume = volume
+    c.CloseTime = closeTime
+    c.QuoteAssetVolume = quoteAssetVolume
+    c.TradesNumber = tradesNumber
+    c.TakerBuyBaseAssetVolume = takerBuyBaseAssetVolume
+    c.TakerBuyQuoteAssetVolume = takerBuyQuoteAssetVolume
+    c.Ignore = ignore
+}
+
 func (c *Client) do(method, endpoint string, params map[string]string, auth bool) (*http.Response, error) {
     baseURL := fmt.Sprintf("%s%s", c.Host, endpoint)
     req, err := http.NewRequest(method, baseURL, nil)
@@ -180,8 +195,13 @@ func (c *Client) GetCandles() (resp []Candle, err error) {
         return resp, err
     }
     fmt.Println(CandlesArray)
-    for _, candle := range CandlesArray {
-        resp = append(resp, Candle{OpenTime: int64(candle[0].(float64)), Open: StrToFloat(candle[1].(string)), High: StrToFloat(candle[2].(string)), Low: StrToFloat(candle[3].(string)), Close: StrToFloat(candle[4].(string)), Volume: StrToFloat(candle[5].(string)), CloseTime: int64(candle[6].(float64)), QuoteAssetVolume: StrToFloat(candle[7].(string)), TradesNumber: int64(candle[8].(float64)), TakerBuyBaseAssetVolume: StrToFloat(candle[9].(string)), TakerBuyQuoteAssetVolume: StrToFloat(candle[10].(string)), Ignore: StrToFloat(candle[11].(string)) })
+    for i, candle := range CandlesArray {
+        // candleInstance = new(Candle)
+        resp = append(resp, Candle{})
+        resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
+        // resp = append(resp, candleInstance.Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string))))
+        // resp = append(resp, Candle{OpenTime: int64(candle[0].(float64)), Open: StrToFloat(candle[1].(string)), High: StrToFloat(candle[2].(string)), Low: StrToFloat(candle[3].(string)), Close: StrToFloat(candle[4].(string)), Volume: StrToFloat(candle[5].(string)), CloseTime: int64(candle[6].(float64)), QuoteAssetVolume: StrToFloat(candle[7].(string)), TradesNumber: int64(candle[8].(float64)), TakerBuyBaseAssetVolume: StrToFloat(candle[9].(string)), TakerBuyQuoteAssetVolume: StrToFloat(candle[10].(string)), Ignore: StrToFloat(candle[11].(string)) })
+
     }
     return
 }
