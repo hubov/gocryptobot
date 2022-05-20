@@ -1,0 +1,5 @@
+# github.com/cinar/indicator v1.2.16
+## explicit; go 1.14
+github.com/cinar/indicator
+github.com/cinar/indicator/container
+github.com/cinar/indicator/container/bst
