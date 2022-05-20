@@ -188,13 +188,13 @@ func (c *Client) GetCandles() (resp []Candle, err error) {
     if err != nil {
         return resp, err
     }
-    bodyString := string(body)
-    fmt.Println(bodyString)
+    // bodyString := string(body)
+    // fmt.Println(bodyString)
     var CandlesArray [][]interface{}
     if err = json.Unmarshal(body, &CandlesArray); err != nil {
         return resp, err
     }
-    fmt.Println(CandlesArray)
+    // fmt.Println(CandlesArray)
     for i, candle := range CandlesArray {
         // candleInstance = new(Candle)
         resp = append(resp, Candle{})
