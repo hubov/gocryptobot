@@ -176,9 +176,15 @@ func StrToFloat(input string) (res float64) {
 }
 
 func (c *Client) GetCandles() (resp []Candle, err error) {
+    resp, err = c.GetCandlesParams(c.Symbol, c.Interval)
+
+    return
+}
+
+func (c *Client) GetCandlesParams(symbol, interval string) (resp []Candle, err error) {
     params := make(map[string]string)
-    params["symbol"] = c.Symbol
-    params["interval"] = c.Interval
+    params["symbol"] = symbol
+    params["interval"] = interval
     res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
     if err != nil {
         return
@@ -199,9 +205,6 @@ func (c *Client) GetCandles() (resp []Candle, err error) {
         // candleInstance = new(Candle)
         resp = append(resp, Candle{})
         resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
-        // resp = append(resp, candleInstance.Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string))))
-        // resp = append(resp, Candle{OpenTime: int64(candle[0].(float64)), Open: StrToFloat(candle[1].(string)), High: StrToFloat(candle[2].(string)), Low: StrToFloat(candle[3].(string)), Close: StrToFloat(candle[4].(string)), Volume: StrToFloat(candle[5].(string)), CloseTime: int64(candle[6].(float64)), QuoteAssetVolume: StrToFloat(candle[7].(string)), TradesNumber: int64(candle[8].(float64)), TakerBuyBaseAssetVolume: StrToFloat(candle[9].(string)), TakerBuyQuoteAssetVolume: StrToFloat(candle[10].(string)), Ignore: StrToFloat(candle[11].(string)) })
-
     }
     return
 }
