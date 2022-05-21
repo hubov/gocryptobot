@@ -24,6 +24,9 @@ func init() {
     if err != nil {
         log.Fatal(err)
     }
+    // for _, candle := range candles {
+    //     fmt.Println(candle)
+    // }
 }
 
 func GetValues(period int, periodType string) (result []float64) {
@@ -55,24 +58,26 @@ func SignalBuy() (result bool) {
 
     data := GetValues(30, "close")
     dataLen := len(data)
-    fmt.Println(data)
     sma := indicator.Sma(30, data)
-    fmt.Println(sma)
 
-    if (sma[len(sma)-1] < data[dataLen-1]) {
+    if sma[len(sma)-1] < data[dataLen-1] {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    _, rsi := indicator.Rsi([]float64{data[dataLen-3], data[dataLen-2], data[dataLen-1]})
+    data = GetValues(500, "close")
+    dataLen = len(data)
+    _, rsi := indicator.Rsi(2, data)
     fmt.Println(rsi)
+    rsiLen := len(rsi)
 
-    // if (rsi[len(sma)-1] < data[dataLen-1]) {
-    //     tests = append(tests, true)
-    // } else {
-    //     tests = append(tests, false)
-    // }
+    fmt.Println(rsi[rsiLen-2], rsi[rsiLen-1])
+    if rsi[rsiLen-2] < 5 && rsi[rsiLen-1] >= 5 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
 
     for _, test := range tests {
         if test == false {
