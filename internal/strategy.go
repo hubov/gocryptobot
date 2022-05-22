@@ -128,18 +128,92 @@ func SignalOrderLong() (result bool) {
             result = false
         }
     }
+
+    return
+}
+
+func SingalCloseLong() (result bool) {
+    var tests []bool
+    if rsi[rsiLen-2] > 95 && rsi[rsiLen-1] <= 95 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    for _, test := range tests {
+        if test == false {
+            result = false
+        }
+    }
+
     return
 }
 
 func SingalExitLong() bool {
+    // based on purchase price
+    return false
+}
+
+func SignalOrderShort() (result bool) {
+    var tests []bool
+    result = true
+
+    if sma[len(sma)-1] > data[dataLen-1] {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    if rsi[rsiLen-2] > 95 && rsi[rsiLen-1] <= 95 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    if (data[dataLen-1] > R1) {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    for _, test := range tests {
+        if test == false {
+            result = false
+        }
+    }
+
+    return
+}
+
+func SingalCloseShort() (result bool) {
+    var tests []bool
+    if rsi[rsiLen-2] < 5 && rsi[rsiLen-1] >= 5 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    return
+}
+
+func SingalExitShort() bool {
+    // based on purchase price
     return false
 }
 
 func GetSignal() string {
     if SignalOrderLong() {
         return "Order LONG"
+    } else if SingalCloseLong() {
+        return "Close LONG"
     } else if SingalExitLong() {
         return "Exit LONG"
+    } else if SignalOrderShort() {
+        return "Order SHORT"
+    } else if SingalCloseShort() {
+        return "Close SHORT"
+    } else if SingalExitLong() {
+        return "Exit SHORT"
     } else {
         return "WAIT"
     }
