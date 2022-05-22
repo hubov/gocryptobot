@@ -1,4 +1,4 @@
-# github.com/cinar/indicator v1.2.16
+# github.com/cinar/indicator v1.2.17
 ## explicit; go 1.14
 github.com/cinar/indicator
 github.com/cinar/indicator/container
