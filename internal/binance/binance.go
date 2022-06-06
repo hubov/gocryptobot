@@ -90,6 +90,7 @@ type (
 var configuration Configuration
 var candleStart = "-62135596800000"
 var candleEnd = "-62135596800000"
+var intervals = make(map[string]int)
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -105,7 +106,6 @@ func init() {
       fmt.Println("error:", err)
     }
 
-    intervals := make(map[string]int)
     intervals["1m"] = 60000
     intervals["3m"] = 180000
     intervals["5m"] = 300000
@@ -205,7 +205,23 @@ func (c *Client) SetTimeframe(start, end int64) {
     return
 }
 
+func (c *Client) countIntervals() (count int64) {
+    startInt, _ := strconv.Atoi(c.TimeStart)
+    endInt, _ := strconv.Atoi(c.TimeEnd)
+    start := time.UnixMilli(int64(startInt))
+    end := time.UnixMilli(int64(endInt))
+    timeDifference := end.Sub(start)
+    count = timeDifference.Microseconds() / int64(intervals[c.Interval])
+
+    return
+}
+
 func (c *Client) GetCandles() (resp []Candle, err error) {
+    intervalsCount := c.countIntervals()
+
+    if intervalsCount < 500 {
+        panic("Count of intervals too short. Is: " + strconv.FormatInt(intervalsCount, 10) + " Needs: 500")
+    }
     resp, err = c.GetCandlesParams(c.Symbol, c.Interval)
 
     return
