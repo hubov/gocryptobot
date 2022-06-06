@@ -8,11 +8,12 @@ import (
 	"log"
 )
 
-var candles []binance.Candle
+var Candles []binance.Candle
+var client *binance.Client
 var defaultTimeout time.Duration
-// var client *binance.Client
 var timeStart int64
 var timeEnd int64
+var IntervalsCount int64
 var data []float64
 var dataLen int
 var sma []float64
@@ -43,9 +44,9 @@ func SetTimeframe(start, end int64) {
     timeEnd = end
 }
 
-func Calculate() {
+func GetData() {
     defaultTimeout := time.Second * 10
-    client := binance.ApiClient(defaultTimeout)
+    client = binance.ApiClient(defaultTimeout)
     if timeStart != 0 {
         client.SetTimeframe(timeStart, timeEnd)
     }
@@ -58,14 +59,16 @@ func Calculate() {
             fmt.Println(coin)
         }
     }
-    candles, err = client.GetCandles()
+    /*candles, */err = client.GetCandles()
     if err != nil {
         log.Fatal(err)
     }
 
-//  ###################################
-// USTALIĆ MINIMALNY PERIOD DLA STRATEGII !!!!!!!
-//  ###################################
+    Candles = client.Candles
+    IntervalsCount = client.IntervalsCount
+}
+
+func Calculate() {
     data = GetValues(30, "close")
     dataLen = len(data)
     sma = indicator.Sma(30, data)
@@ -76,11 +79,12 @@ func Calculate() {
     rsiLen = len(rsi)
 
     client1D := binance.ApiClient(defaultTimeout)
-    candles1D, err := client1D.GetCandlesParams(client1D.Symbol, "1d")
+    /*candles1D, */err := client1D.GetCandlesParams(client1D.Symbol, "1d")
     if err != nil {
         log.Fatal(err)
     }
-    data1D := candles1D[len(candles1D) - 2]
+    data1D := client1D.Candles[len(client1D.Candles) - 2]
+    // data1D := candles1D[len(candles1D) - 2]
     PivotPoint = (data1D.High + data1D.Low + data1D.Close) / 3
     S1 = 2*PivotPoint - data1D.High
     // R1 = 2*PivotPoint - data1D.Low
@@ -93,7 +97,7 @@ func Calculate() {
 }
 
 func GetValues(period int, periodType string) (result []float64) {
-    result = GetValuesParams(period, periodType, candles)
+    result = GetValuesParams(period, periodType, Candles)
 
     return
 }
@@ -109,13 +113,13 @@ func GetValuesParams(period int, periodType string, paramCandles []binance.Candl
     for i < len {
         switch (periodType) {
         case "close": 
-            price = candles[i].Close
+            price = Candles[i].Close
         case "open":
-            price = candles[i].Open
+            price = Candles[i].Open
         case "low":
-            price = candles[i].Low
+            price = Candles[i].Low
         case "high": 
-            price = candles[i].High
+            price = Candles[i].High
         }
 
         result = append(result, price)

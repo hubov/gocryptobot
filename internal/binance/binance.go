@@ -22,6 +22,8 @@ type (
         Interval string
         TimeStart string
         TimeEnd string
+        IntervalsCount int64
+        Candles []Candle
     }
     Configuration struct {
         Host string
@@ -91,6 +93,7 @@ var configuration Configuration
 var candleStart = "-62135596800000"
 var candleEnd = "-62135596800000"
 var intervals = make(map[string]int)
+var Candles []Candle
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -134,6 +137,7 @@ func ApiClient(timeout time.Duration) *Client {
         Interval: configuration.Trade.Interval,
         TimeStart: "-62135596800000",
         TimeEnd: "-62135596800000",
+        IntervalsCount: 0,
     }
 }
 
@@ -202,64 +206,98 @@ func (c *Client) SetTimeframe(start, end int64) {
     c.TimeStart = strconv.FormatInt(start, 10)
     c.TimeEnd = strconv.FormatInt(end, 10)
 
+    c.countIntervals()
+    if c.IntervalsCount != 0 && c.IntervalsCount < 500 {
+        panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
+    }
+
     return
 }
 
-func (c *Client) countIntervals() (count int64) {
+func (c *Client) countIntervals() {
     startInt, _ := strconv.Atoi(c.TimeStart)
     endInt, _ := strconv.Atoi(c.TimeEnd)
     start := time.UnixMilli(int64(startInt))
     end := time.UnixMilli(int64(endInt))
     timeDifference := end.Sub(start)
-    count = timeDifference.Microseconds() / int64(intervals[c.Interval])
+    c.IntervalsCount = timeDifference.Milliseconds() / int64(intervals[c.Interval])
+}
+
+func (c *Client) GetCandles() (/*resp []Candle, */err error) {
+    /*resp, */err = c.GetCandlesParams(c.Symbol, c.Interval)
 
     return
 }
 
-func (c *Client) GetCandles() (resp []Candle, err error) {
-    intervalsCount := c.countIntervals()
-
-    if intervalsCount < 500 {
-        panic("Count of intervals too short. Is: " + strconv.FormatInt(intervalsCount, 10) + " Needs: 500")
-    }
-    resp, err = c.GetCandlesParams(c.Symbol, c.Interval)
-
-    return
-}
-
-func (c *Client) GetCandlesParams(symbol, interval string) (resp []Candle, err error) {
+func (c *Client) GetCandlesParams(symbol, interval string) (/*resp []Candle, */err error) {
     params := make(map[string]string)
-    params["symbol"] = symbol
-    params["interval"] = interval
-    if candleStart != "-62135596800000" {
-        params["startTime"] = candleStart
+    var paramStart, paramEnd string
+    var candlesToGet int64
+    if c.TimeStart != "-62135596800000" {
+        paramStart = c.TimeStart
     }
-    if candleEnd != "-62135596800000" {
-        params["endTime"] = candleEnd
+    if paramEnd != "-62135596800000" {
+        paramEnd = c.TimeEnd
     }
-    // fmt.Println(params)
-    res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
-    if err != nil {
-        return
+
+    if c.IntervalsCount != 0 {
+        candlesToGet = c.IntervalsCount
+    } else {
+        candlesToGet = 500
     }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
+
+    for candlesToGet > 0 {
+        if candlesToGet >= 1000 {
+            params["limit"] = "1000"
+        } else {
+            params["limit"] = strconv.FormatInt(candlesToGet, 10)
+        }
+        params["symbol"] = symbol
+        params["interval"] = interval
+        if paramStart != "-62135596800000" {
+            params["startTime"] = paramStart
+        }
+        if paramEnd != "-62135596800000" {
+            params["endTime"] = paramEnd
+        }
+        // fmt.Println(params)
+        res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
+        if err != nil {
+            return err
+        }
+        defer res.Body.Close()
+        body, err := ioutil.ReadAll(res.Body)
+        if err != nil {
+            return /*resp, */err
+        }
+        // bodyString := string(body)
+        // fmt.Println(bodyString)
+        var CandlesArray [][]interface{}
+        if err = json.Unmarshal(body, &CandlesArray); err != nil {
+            return /*resp, */err
+        }
+        // fmt.Println(CandlesArray)
+
+        candlesLength := len(c.Candles)
+        for i, candle := range CandlesArray {
+            // candleInstance = new(Candle)
+            //resp = append(resp, Candle{})
+            //resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
+            c.Candles = append(c.Candles, Candle{})
+            c.Candles[candlesLength + i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
+            // fmt.Println(c.Candles[candlesLength + i].CloseTime)
+        }
+
+        candlesToGet = candlesToGet - int64(len(CandlesArray))
+        paramStart = strconv.FormatInt(c.Candles[len(c.Candles) - 1].CloseTime + 1, 10)
     }
-    // bodyString := string(body)
-    // fmt.Println(bodyString)
-    var CandlesArray [][]interface{}
-    if err = json.Unmarshal(body, &CandlesArray); err != nil {
-        return resp, err
-    }
-    // fmt.Println(CandlesArray)
-    for i, candle := range CandlesArray {
-        // candleInstance = new(Candle)
-        resp = append(resp, Candle{})
-        resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
-    }
+
+    // fmt.Println(len(resp))
     return
+}
+
+func (c *Client) returnCandles() (candles []Candle) {
+    return c.Candles
 }
 
 func (c *Client) SpotAccount() (resp SpotAccount, err error) {
