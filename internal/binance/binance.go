@@ -233,11 +233,17 @@ func (c *Client) GetCandlesParams(symbol, interval string) (/*resp []Candle, */e
     params := make(map[string]string)
     var paramStart, paramEnd string
     var candlesToGet int64
+    var CandlesArray [][]interface{}
+
     if c.TimeStart != "-62135596800000" {
         paramStart = c.TimeStart
+    } else {
+        paramStart = "-62135596800000"
     }
-    if paramEnd != "-62135596800000" {
+    if c.TimeEnd != "-62135596800000" {
         paramEnd = c.TimeEnd
+    } else {
+        paramEnd = "-62135596800000"
     }
 
     if c.IntervalsCount != 0 {
@@ -260,7 +266,7 @@ func (c *Client) GetCandlesParams(symbol, interval string) (/*resp []Candle, */e
         if paramEnd != "-62135596800000" {
             params["endTime"] = paramEnd
         }
-        // fmt.Println(params)
+        fmt.Println(params)
         res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
         if err != nil {
             return err
@@ -272,7 +278,6 @@ func (c *Client) GetCandlesParams(symbol, interval string) (/*resp []Candle, */e
         }
         // bodyString := string(body)
         // fmt.Println(bodyString)
-        var CandlesArray [][]interface{}
         if err = json.Unmarshal(body, &CandlesArray); err != nil {
             return /*resp, */err
         }
