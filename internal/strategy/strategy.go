@@ -10,6 +10,9 @@ import (
 
 var candles []binance.Candle
 var defaultTimeout time.Duration
+// var client *binance.Client
+var timeStart int64
+var timeEnd int64
 var data []float64
 var dataLen int
 var sma []float64
@@ -23,24 +26,46 @@ var R2 float64
 var S3 float64
 var R3 float64
 
-func init() {
-	defaultTimeout := time.Second * 10
+// func SetCandleStart (start int64) {
+//     client.SetStartTime(start)
+
+//     return
+// }
+
+// func SetCandleEnd (end int64) {
+//     client.SetEndTime(end)
+
+//     return
+// }
+
+func SetTimeframe(start, end int64) {
+    timeStart = start
+    timeEnd = end
+}
+
+func Calculate() {
+    defaultTimeout := time.Second * 10
     client := binance.ApiClient(defaultTimeout)
+    if timeStart != 0 {
+        client.SetTimeframe(timeStart, timeEnd)
+    }
     wallet, err := client.SpotBalance()
     if err != nil {
         log.Fatal(err)
     }
     for _, coin := range wallet {
-        fmt.Println(coin)
+        if coin.Free > 0 || coin.Locked > 0 {
+            fmt.Println(coin)
+        }
     }
     candles, err = client.GetCandles()
     if err != nil {
         log.Fatal(err)
     }
-    // for _, candle := range candles {
-    //     fmt.Println(candle)
-    // }
 
+//  ###################################
+// USTALIĆ MINIMALNY PERIOD DLA STRATEGII !!!!!!!
+//  ###################################
     data = GetValues(30, "close")
     dataLen = len(data)
     sma = indicator.Sma(30, data)
@@ -48,7 +73,6 @@ func init() {
     data = GetValues(500, "close")
     dataLen = len(data)
     _, rsi = indicator.RsiPeriod(2, data)
-    fmt.Println(rsi)
     rsiLen = len(rsi)
 
     client1D := binance.ApiClient(defaultTimeout)
@@ -56,9 +80,7 @@ func init() {
     if err != nil {
         log.Fatal(err)
     }
-    // fmt.Println(candles1D)
     data1D := candles1D[len(candles1D) - 2]
-    fmt.Println(data1D)
     PivotPoint = (data1D.High + data1D.Low + data1D.Close) / 3
     S1 = 2*PivotPoint - data1D.High
     // R1 = 2*PivotPoint - data1D.Low
@@ -67,7 +89,6 @@ func init() {
     // S3 = data1D.Low - 2 * (data1D.High - PivotPoint)
     // R3 = data1D.High + 2 * (PivotPoint - data1D.Low)
 
-    fmt.Println(PivotPoint)
     fmt.Println(data[dataLen-1], S1)
 }
 
@@ -80,7 +101,10 @@ func GetValues(period int, periodType string) (result []float64) {
 func GetValuesParams(period int, periodType string, paramCandles []binance.Candle) (result []float64) {
     var price float64
     funcCandles := paramCandles
+    // fmt.Println(funcCandles)
+    // fmt.Println(period)
     len := len(funcCandles)
+    // fmt.Println(len)
     i := len - period
     for i < len {
         switch (periodType) {
@@ -202,6 +226,8 @@ func SingalExitShort() bool {
 }
 
 func GetSignal() string {
+    Calculate()
+
     if SignalOrderLong() {
         return "Order LONG"
     } else if SingalCloseLong() {
@@ -215,7 +241,7 @@ func GetSignal() string {
     } else if SingalExitLong() {
         return "Exit SHORT"
     } else {
-        return "WAIT"
+        return "WAIT" + fmt.Sprintf("%f", data[dataLen-1])
     }
 
 }

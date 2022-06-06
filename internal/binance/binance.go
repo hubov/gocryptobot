@@ -20,6 +20,8 @@ type (
         Timeout time.Duration
         Symbol string
         Interval string
+        TimeStart string
+        TimeEnd string
     }
     Configuration struct {
         Host string
@@ -86,6 +88,8 @@ type (
 )
 
 var configuration Configuration
+var candleStart = "-62135596800000"
+var candleEnd = "-62135596800000"
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -100,6 +104,23 @@ func init() {
     if err != nil {
       fmt.Println("error:", err)
     }
+
+    intervals := make(map[string]int)
+    intervals["1m"] = 60000
+    intervals["3m"] = 180000
+    intervals["5m"] = 300000
+    intervals["15m"] = 900000
+    intervals["30m"] = 1800000
+    intervals["1h"] = 3600000
+    intervals["2h"] = 7200000
+    intervals["4h"] = 14400000
+    intervals["6h"] = 21600000
+    intervals["8h"] = 28800000
+    intervals["12h"] = 43200000
+    intervals["1d"] = 86400000
+    intervals["3d"] = 259200000
+    intervals["1w"] = 604800000
+    // intervals["1M"] = 2629800000
 }
 
 func ApiClient(timeout time.Duration) *Client {
@@ -111,6 +132,8 @@ func ApiClient(timeout time.Duration) *Client {
         Host: configuration.Host,
         Symbol: configuration.Trade.BaseSymbol + configuration.Trade.QuoteSymbol,
         Interval: configuration.Trade.Interval,
+        TimeStart: "-62135596800000",
+        TimeEnd: "-62135596800000",
     }
 }
 
@@ -175,6 +198,13 @@ func StrToFloat(input string) (res float64) {
     return
 }
 
+func (c *Client) SetTimeframe(start, end int64) {
+    c.TimeStart = strconv.FormatInt(start, 10)
+    c.TimeEnd = strconv.FormatInt(end, 10)
+
+    return
+}
+
 func (c *Client) GetCandles() (resp []Candle, err error) {
     resp, err = c.GetCandlesParams(c.Symbol, c.Interval)
 
@@ -185,6 +215,13 @@ func (c *Client) GetCandlesParams(symbol, interval string) (resp []Candle, err e
     params := make(map[string]string)
     params["symbol"] = symbol
     params["interval"] = interval
+    if candleStart != "-62135596800000" {
+        params["startTime"] = candleStart
+    }
+    if candleEnd != "-62135596800000" {
+        params["endTime"] = candleEnd
+    }
+    // fmt.Println(params)
     res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
     if err != nil {
         return
