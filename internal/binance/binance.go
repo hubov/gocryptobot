@@ -203,6 +203,7 @@ func StrToFloat(input string) (res float64) {
 }
 
 func (c *Client) SetTimeframe(start, end int64) {
+    start = start - int64(500 * intervals[c.Interval])
     c.TimeStart = strconv.FormatInt(start, 10)
     c.TimeEnd = strconv.FormatInt(end, 10)
 
@@ -290,11 +291,15 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
             //resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
             c.Candles = append(c.Candles, Candle{})
             c.Candles[candlesLength + i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
-            // fmt.Println(c.Candles[candlesLength + i].CloseTime)
+            // fmt.Println(c.Candles[candlesLength + i].OpenTime, c.Candles[candlesLength + i].Open)
         }
 
-        candlesToGet = candlesToGet - int64(len(CandlesArray))
-        paramStart = strconv.FormatInt(c.Candles[len(c.Candles) - 1].CloseTime + 1, 10)
+        if len(CandlesArray) > 0 {
+            candlesToGet = candlesToGet - int64(len(CandlesArray))
+            paramStart = strconv.FormatInt(c.Candles[len(c.Candles) - 1].CloseTime + 1, 10)
+        } else {
+            candlesToGet = 0
+        }
     }
 
     // fmt.Println(len(resp))
