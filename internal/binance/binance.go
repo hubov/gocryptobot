@@ -223,13 +223,13 @@ func (c *Client) countIntervals() {
     c.IntervalsCount = timeDifference.Milliseconds() / int64(intervals[c.Interval])
 }
 
-func (c *Client) GetCandles() (/*resp []Candle, */err error) {
-    /*resp, */err = c.GetCandlesParams(c.Symbol, c.Interval)
+func (c *Client) GetCandles() (err error) {
+    err = c.GetCandlesParams(c.Symbol, c.Interval)
 
     return
 }
 
-func (c *Client) GetCandlesParams(symbol, interval string) (/*resp []Candle, */err error) {
+func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
     params := make(map[string]string)
     var paramStart, paramEnd string
     var candlesToGet int64
@@ -279,7 +279,7 @@ func (c *Client) GetCandlesParams(symbol, interval string) (/*resp []Candle, */e
         // bodyString := string(body)
         // fmt.Println(bodyString)
         if err = json.Unmarshal(body, &CandlesArray); err != nil {
-            return /*resp, */err
+            return err
         }
         // fmt.Println(CandlesArray)
 

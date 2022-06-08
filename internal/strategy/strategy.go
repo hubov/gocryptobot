@@ -8,7 +8,8 @@ import (
 	"log"
 )
 
-var Candles []binance.Candle
+var Candles = make(map[string][]binance.Candle)
+// var Candles = []binance.Candle
 var client *binance.Client
 var defaultTimeout time.Duration
 var timeStart int64
@@ -26,18 +27,6 @@ var S2 float64
 var R2 float64
 var S3 float64
 var R3 float64
-
-// func SetCandleStart (start int64) {
-//     client.SetStartTime(start)
-
-//     return
-// }
-
-// func SetCandleEnd (end int64) {
-//     client.SetEndTime(end)
-
-//     return
-// }
 
 func SetTimeframe(start, end int64) {
     timeStart = start
@@ -59,32 +48,34 @@ func GetData() {
             fmt.Println(coin)
         }
     }
-    /*candles, */err = client.GetCandles()
+    err = client.GetCandles()
     if err != nil {
         log.Fatal(err)
     }
 
-    Candles = client.Candles
+    Candles[client.Interval] = client.Candles
     IntervalsCount = client.IntervalsCount
+
+    client1D := binance.ApiClient(defaultTimeout)
+    err = client1D.GetCandlesParams(client1D.Symbol, "1d")
+    if err != nil {
+        log.Fatal(err)
+    }
+    Candles["1d"] = client1D.Candles
 }
 
 func Calculate() {
-    data = GetValues(30, "close")
+    data = GetValues(client.Interval, 30, "close")
     dataLen = len(data)
     sma = indicator.Sma(30, data)
 
-    data = GetValues(500, "close")
+    data = GetValues(client.Interval, 500, "close")
     dataLen = len(data)
     _, rsi = indicator.RsiPeriod(2, data)
     rsiLen = len(rsi)
 
-    client1D := binance.ApiClient(defaultTimeout)
-    /*candles1D, */err := client1D.GetCandlesParams(client1D.Symbol, "1d")
-    if err != nil {
-        log.Fatal(err)
-    }
-    data1D := client1D.Candles[len(client1D.Candles) - 2]
-    // data1D := candles1D[len(candles1D) - 2]
+    // data1D := client1D.Candles[len(client1D.Candles) - 2]
+    data1D := Candles["1d"][len(Candles["1d"]) - 2]
     PivotPoint = (data1D.High + data1D.Low + data1D.Close) / 3
     S1 = 2*PivotPoint - data1D.High
     // R1 = 2*PivotPoint - data1D.Low
@@ -96,30 +87,26 @@ func Calculate() {
     fmt.Println(data[dataLen-1], S1)
 }
 
-func GetValues(period int, periodType string) (result []float64) {
-    result = GetValuesParams(period, periodType, Candles)
+func GetValues(interval string, period int, periodType string) (result []float64) {
+    result = GetValuesParams(interval, period, periodType)
 
     return
 }
 
-func GetValuesParams(period int, periodType string, paramCandles []binance.Candle) (result []float64) {
+func GetValuesParams(interval string, period int, periodType string) (result []float64) {
     var price float64
-    funcCandles := paramCandles
-    // fmt.Println(funcCandles)
-    // fmt.Println(period)
-    len := len(funcCandles)
-    // fmt.Println(len)
+    len := len(Candles[interval])
     i := len - period
     for i < len {
         switch (periodType) {
         case "close": 
-            price = Candles[i].Close
+            price = Candles[interval][i].Close
         case "open":
-            price = Candles[i].Open
+            price = Candles[interval][i].Open
         case "low":
-            price = Candles[i].Low
+            price = Candles[interval][i].Low
         case "high": 
-            price = Candles[i].High
+            price = Candles[interval][i].High
         }
 
         result = append(result, price)
