@@ -9,17 +9,17 @@ import (
 )
 
 var Candles = make(map[string][]binance.Candle)
-// var Candles = []binance.Candle
-var client *binance.Client
+var Update = make(map[string][]binance.Candle)
+var Client *binance.Client
 var defaultTimeout time.Duration
 var timeStart int64
 var timeEnd int64
 var IntervalsCount int64
-var data []float64
-var dataLen int
-var sma []float64
-var rsi []float64
-var rsiLen int
+var Data []float64
+var DataLen int
+var Sma []float64
+var Rsi []float64
+var RsiLen int
 var PivotPoint float64
 var S1 float64
 var R1 float64
@@ -35,11 +35,11 @@ func SetTimeframe(start, end int64) {
 
 func GetData() {
     defaultTimeout := time.Second * 10
-    client = binance.ApiClient(defaultTimeout)
+    Client = binance.ApiClient(defaultTimeout)
     if timeStart != 0 {
-        client.SetTimeframe(timeStart, timeEnd)
+        Client.SetTimeframe(timeStart, timeEnd)
     }
-    wallet, err := client.SpotBalance()
+    wallet, err := Client.SpotBalance()
     if err != nil {
         log.Fatal(err)
     }
@@ -48,13 +48,13 @@ func GetData() {
             fmt.Println(coin)
         }
     }
-    err = client.GetCandles()
+    err = Client.GetCandles()
     if err != nil {
         log.Fatal(err)
     }
 
-    Candles[client.Interval] = client.Candles
-    IntervalsCount = client.IntervalsCount
+    Candles[Client.Interval] = Client.Candles
+    IntervalsCount = Client.IntervalsCount
 
     client1D := binance.ApiClient(defaultTimeout)
     err = client1D.GetCandlesParams(client1D.Symbol, "1d")
@@ -64,27 +64,30 @@ func GetData() {
     Candles["1d"] = client1D.Candles
 }
 
+func SetData(candles map[string][]binance.Candle) {
+    Candles = candles
+}
+
 func Calculate() {
-    data = GetValues(client.Interval, 30, "close")
-    dataLen = len(data)
-    sma = indicator.Sma(30, data)
+    Data = GetValues(Client.Interval, 30, "close")
+    DataLen = len(Data)
+    Sma = indicator.Sma(30, Data)
 
-    data = GetValues(client.Interval, 500, "close")
-    dataLen = len(data)
-    _, rsi = indicator.RsiPeriod(2, data)
-    rsiLen = len(rsi)
+    Data = GetValues(Client.Interval, 500, "close")
+    DataLen = len(Data)
+    _, Rsi = indicator.RsiPeriod(2, Data)
+    RsiLen = len(Rsi)
 
-    // data1D := client1D.Candles[len(client1D.Candles) - 2]
-    data1D := Candles["1d"][len(Candles["1d"]) - 2]
+    data1D := Candles["1d"][len(Candles["1d"]) - 1]
     PivotPoint = (data1D.High + data1D.Low + data1D.Close) / 3
     S1 = 2*PivotPoint - data1D.High
-    // R1 = 2*PivotPoint - data1D.Low
+    R1 = 2*PivotPoint - data1D.Low
     // S2 = PivotPoint - (R1 - S1)
     // R2 = PivotPoint + (R1 - S1)
     // S3 = data1D.Low - 2 * (data1D.High - PivotPoint)
     // R3 = data1D.High + 2 * (PivotPoint - data1D.Low)
 
-    fmt.Println(data[dataLen-1], S1)
+    // fmt.Println(data[dataLen-1], S1)
 }
 
 func GetValues(interval string, period int, periodType string) (result []float64) {
@@ -116,27 +119,68 @@ func GetValuesParams(interval string, period int, periodType string) (result []f
     return
 }
 
+
+// ######################################
+// ######################################
+// ######################################
+
+// pos := if close > R1 {
+//     1 KUP
+// } else {
+//     if close < S1 {
+//         -1 SPRZEDAJ
+//     }
+// }
+
+
+
+
+
+
+// S = S1
+// B = R1
+// pos := if (close > R1)
+//         1 (buy)
+//         else
+//        if (close < S1)
+//          -1 (sell)
+//         else
+//             0 
+
+
+
+
+// ######################################
+// ######################################
+// ######################################
+
+
+
 func SignalOrderLong() (result bool) {
     var tests []bool
     result = true
 
-    if sma[len(sma)-1] < data[dataLen-1] {
+    if Sma[len(Sma)-1] < Data[DataLen-1] {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    if rsi[rsiLen-2] < 5 && rsi[rsiLen-1] >= 5 {
+    // if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
+    if Rsi[RsiLen-1] < 5 && Rsi[RsiLen-2] >= 5 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    if (data[dataLen-1] < S1) {
+    // if (Data[DataLen-1] > S1) {
+    if (Data[DataLen-1] > R1) {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
+
+    // fmt.Println(tests)
 
     for _, test := range tests {
         if test == false {
@@ -149,7 +193,7 @@ func SignalOrderLong() (result bool) {
 
 func SingalCloseLong() (result bool) {
     var tests []bool
-    if rsi[rsiLen-2] > 95 && rsi[rsiLen-1] <= 95 {
+    if Rsi[RsiLen-2] > 95 && Rsi[RsiLen-1] <= 95 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -173,19 +217,21 @@ func SignalOrderShort() (result bool) {
     var tests []bool
     result = true
 
-    if sma[len(sma)-1] > data[dataLen-1] {
+    if Data[DataLen-1] < Sma[len(Sma)-1] {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    if rsi[rsiLen-2] > 95 && rsi[rsiLen-1] <= 95 {
+    // if Rsi[RsiLen-2] >= 95 && Rsi[RsiLen-1] < 95 {
+    if Rsi[RsiLen-1] >= 95 && Rsi[RsiLen-2] < 95 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    if (data[dataLen-1] > R1) {
+    // if (Data[DataLen-1] < R1) {
+    if (Data[DataLen-1] < S1) {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -202,7 +248,7 @@ func SignalOrderShort() (result bool) {
 
 func SingalCloseShort() (result bool) {
     var tests []bool
-    if rsi[rsiLen-2] < 5 && rsi[rsiLen-1] >= 5 {
+    if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -232,7 +278,7 @@ func GetSignal() string {
     } else if SingalExitLong() {
         return "Exit SHORT"
     } else {
-        return "WAIT" + fmt.Sprintf("%f", data[dataLen-1])
+        return "WAIT"/* + fmt.Sprintf("%f", data[dataLen-1])*/
     }
 
 }
