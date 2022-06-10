@@ -166,8 +166,8 @@ func SignalOrderLong() (result bool) {
         tests = append(tests, false)
     }
 
-    // if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
-    if Rsi[RsiLen-1] < 5 && Rsi[RsiLen-2] >= 5 {
+    if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
+    // if Rsi[RsiLen-1] < 5 && Rsi[RsiLen-2] >= 5 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -193,6 +193,8 @@ func SignalOrderLong() (result bool) {
 
 func SingalCloseLong() (result bool) {
     var tests []bool
+    result = true
+
     if Rsi[RsiLen-2] > 95 && Rsi[RsiLen-1] <= 95 {
         tests = append(tests, true)
     } else {
@@ -223,8 +225,8 @@ func SignalOrderShort() (result bool) {
         tests = append(tests, false)
     }
 
-    // if Rsi[RsiLen-2] >= 95 && Rsi[RsiLen-1] < 95 {
-    if Rsi[RsiLen-1] >= 95 && Rsi[RsiLen-2] < 95 {
+    if Rsi[RsiLen-2] >= 95 && Rsi[RsiLen-1] < 95 {
+    // if Rsi[RsiLen-1] >= 95 && Rsi[RsiLen-2] < 95 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -248,10 +250,18 @@ func SignalOrderShort() (result bool) {
 
 func SingalCloseShort() (result bool) {
     var tests []bool
+    result = true
+
     if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
+    }
+
+    for _, test := range tests {
+        if test == false {
+            result = false
+        }
     }
 
     return
@@ -267,12 +277,12 @@ func GetSignal() string {
 
     if SignalOrderLong() {
         return "Order LONG"
+    } else if SignalOrderShort() {
+        return "Order SHORT"
     } else if SingalCloseLong() {
         return "Close LONG"
     } else if SingalExitLong() {
         return "Exit LONG"
-    } else if SignalOrderShort() {
-        return "Order SHORT"
     } else if SingalCloseShort() {
         return "Close SHORT"
     } else if SingalExitLong() {
