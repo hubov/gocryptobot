@@ -461,6 +461,24 @@ func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
 //     }
 
 // }
+func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    res, err := c.do(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    return
+}
 
 func QueryAPI(url string) ([]byte) {
     req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
