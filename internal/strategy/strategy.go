@@ -269,7 +269,6 @@ func SingalExitShort() bool {
     return false
 }
 
-func GetSignal() string {
 func GetSignal() (signals []string) {
     Calculate()
 
