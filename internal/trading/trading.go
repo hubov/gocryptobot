@@ -4,6 +4,7 @@ import (
 	"github.com/hubov/gocryptobot/internal/strategy"
 	"time"
 	"fmt"
+	"strings"
 )
 
 func Simulation(startTime, endTime time.Time) {
@@ -11,15 +12,15 @@ func Simulation(startTime, endTime time.Time) {
 		startTimeUnix := startTime.UnixMilli()
 		endTimeUnix := endTime.UnixMilli()
 
-		fmt.Println(startTimeUnix, endTimeUnix)
+		// fmt.Println(startTimeUnix, endTimeUnix)
 
 		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
 		strategy.GetData()
 		candles := strategy.Candles
 		intervalsCount := int(strategy.IntervalsCount)
 
-		fmt.Println(intervalsCount)
-		fmt.Println(strategy.Client.Interval)
+		// fmt.Println(intervalsCount)
+		// fmt.Println(strategy.Client.Interval)
 
 		var intervalIterators = make(map[string]int)
 		if len(candles) > 1 {
@@ -30,7 +31,7 @@ func Simulation(startTime, endTime time.Time) {
 			}
 		}
 
-		fmt.Println(intervalIterators)
+		// fmt.Println(intervalIterators)
 
 		// fmt.Println(candles)
 
@@ -45,13 +46,16 @@ func Simulation(startTime, endTime time.Time) {
 				}
 				strategy.Update[key] = candles[key][0:intervalIterators[key]]
 			}
-			// fmt.Println(i, intervalIterators)
 
 			strategy.SetData(strategy.Update)
-			if (strategy.GetSignal() != "WAIT") {
-				fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.GetSignal(), candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
-			} else {
-				// fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.GetSignal(), candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+			signals := strategy.GetSignal()
+			for _, signal := range signals {
+				if (signal != "WAIT") {
+					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+					SimOrder(signal)
+				} else {
+					// fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.GetSignal(), candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+				}
 			}
 			i++
 		}

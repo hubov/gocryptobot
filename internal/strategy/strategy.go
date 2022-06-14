@@ -6,6 +6,7 @@ import (
 	// "fmt"
 	"time"
 	"log"
+    "math"
 )
 
 var Candles = make(map[string][]binance.Candle)
@@ -269,22 +270,41 @@ func SingalExitShort() bool {
 }
 
 func GetSignal() string {
+func GetSignal() (signals []string) {
     Calculate()
 
-    if SignalOrderLong() {
-        return "Order LONG"
-    } else if SignalOrderShort() {
-        return "Order SHORT"
-    } else if SingalCloseLong() {
-        return "Close LONG"
-    } else if SingalExitLong() {
-        return "Exit LONG"
-    } else if SingalCloseShort() {
-        return "Close SHORT"
-    } else if SingalExitLong() {
-        return "Exit SHORT"
-    } else {
-        return "WAIT"/* + fmt.Sprintf("%f", data[dataLen-1])*/
+    // if the Cryptocurrency value in wallet is significant try to close/exit position
+    if (math.Abs(SymbolWorth) >= 2) {
+        if SymbolWorth > 0 {
+            if SingalCloseLong() {
+                signals = append(signals, "Close LONG")
+            } else if SingalExitLong() {
+                signals = append(signals, "Exit LONG")
+            }
+        } else if SymbolWorth < 0 {
+            if SingalCloseShort() {
+                signals = append(signals, "Close SHORT")
+            } else if SingalExitLong() {
+                signals = append(signals, "Exit SHORT")
+            }
+        }
     }
 
+    if SignalOrderLong() {
+        signals = append(signals, "Order LONG")
+    } else if SignalOrderShort() {
+        signals = append(signals, "Order SHORT")
+    }
+
+    if (len(signals) == 0) {
+        signals = append(signals, "WAIT")
+    }
+
+    return
+}
+
+func Trade(signal string) {
+    Client.Trade(signal)
+    // pass additional vars:
+    // AMOUNT IF MARGIN SELL/BUY
 }
