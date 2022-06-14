@@ -11,6 +11,8 @@ import (
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
+    "sync"
+    "strings"
 )
 
 type (
@@ -64,15 +66,6 @@ type (
         Locked float64 `json:"locked,string"`
         NetAsset float64 `json:"netAsset,string"`
     }
-    Wallet struct {
-        Coin string `json:"coin"`
-        Name string `json:"name"`
-        Free float64 `json:"free,string"`
-        Freeze float64 `json:"freeze,string"`
-        Locked float64 `json:"locked,string"`
-        Storage float64 `json:"storage,string"`
-        Withdrawing float64 `json:"withdrawing,string"`
-    }
     Candle struct {
         OpenTime int64
         Open float64
@@ -87,6 +80,10 @@ type (
         TakerBuyQuoteAssetVolume float64
         Ignore float64
     }
+    PriceTicker struct {
+        Symbol string `json:"symbol"`
+        Price float64 `json:"price,string"`
+    }
 )
 
 var configuration Configuration
@@ -94,6 +91,10 @@ var candleStart = "-62135596800000"
 var candleEnd = "-62135596800000"
 var intervals = make(map[string]int)
 var Candles []Candle
+var BaseSymbol MarginAsset
+var QuoteSymbol MarginAsset
+var LastBuyPrice float64
+var SymbolWorth float64
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -357,9 +358,74 @@ func (c *Client) MarginAccount() (resp MarginAccount, err error) {
     return
 }
 
-func (c *Client) GetWallet() (result []Wallet, err error) {
-    var resp []Wallet
-    res, err := c.do(http.MethodGet, "/sapi/v1/capital/config/getall", nil, true)
+func (c *Client) GetWallet() {
+    var wallet MarginAccount
+    var trades []TradeHistory
+    var ticker PriceTicker
+    var err error
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        wallet, err = c.MarginAccount()
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
+    wg.Add(1)
+    go func() {
+        trades, err = c.GetLastTrades()
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
+    wg.Add(1)
+    go func() {
+        ticker, err = c.GetPriceTicker()
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
+    wg.Wait()
+    for _, coin := range wallet.UserAssets {
+        if (coin.NetAsset != 0) {
+            fmt.Println(coin)
+        }
+
+        if coin.Asset == configuration.Trade.BaseSymbol {
+            BaseSymbol = coin
+            if coin.NetAsset != 0 {
+                var timestamp int64
+                var prices float64
+                var quantity float64
+                for i := len(trades)-1; i>=0; i-- {
+                    if (timestamp == 0) {
+                        timestamp = trades[i].Time
+                    } else if timestamp != trades[i].Time {
+                        break
+                    }
+                    prices = prices + trades[i].Price * trades[i].Quantity
+                    quantity = quantity + trades[i].Quantity
+                }
+                LastBuyPrice = prices / quantity
+                for _, trade := range trades {
+                    fmt.Println(trade)
+                }
+            }
+            SymbolWorth = BaseSymbol.NetAsset * ticker.Price
+            fmt.Println(SymbolWorth)
+        } else if coin.Asset == configuration.Trade.QuoteSymbol {
+            QuoteSymbol = coin
+        }
+    }
+}
+
+func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    res, err := c.do(http.MethodGet, "/api/v3/ticker/price", params, false)
     if err != nil {
         return
     }
@@ -371,12 +437,7 @@ func (c *Client) GetWallet() (result []Wallet, err error) {
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
-    for _, coin := range resp {
-        sum := coin.Free + coin.Freeze + coin.Locked + coin.Storage + coin.Withdrawing
-        if (sum > 0) {
-            result = append(result, coin)
-        }
-    }
+
     return
 }
 

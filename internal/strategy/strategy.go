@@ -3,7 +3,7 @@ package strategy
 import (
 	"github.com/hubov/gocryptobot/internal/binance"
     "github.com/cinar/indicator"
-	"fmt"
+	// "fmt"
 	"time"
 	"log"
 )
@@ -27,6 +27,8 @@ var S2 float64
 var R2 float64
 var S3 float64
 var R3 float64
+var LastBuyPrice float64
+var SymbolWorth float64
 
 func SetTimeframe(start, end int64) {
     timeStart = start
@@ -39,17 +41,10 @@ func GetData() {
     if timeStart != 0 {
         Client.SetTimeframe(timeStart, timeEnd)
     }
-    // wallet, err := Client.SpotBalance()
-    wallet, err := Client.MarginBalance()
-    if err != nil {
-        log.Fatal(err)
-    }
-    for _, coin := range wallet {
-        // if coin.Free > 0 || coin.Locked > 0 {
-            fmt.Println(coin)
-        // }
-    }
-    err = Client.GetCandles()
+    Client.GetWallet()
+    LastBuyPrice = binance.LastBuyPrice
+    SymbolWorth = binance.SymbolWorth
+    err := Client.GetCandles()
     if err != nil {
         log.Fatal(err)
     }
