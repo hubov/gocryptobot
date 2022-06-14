@@ -39,6 +39,35 @@ type (
         QuoteSymbol string `json:"quote_symbol"`
         Interval string
     }
+    TradeHistory struct {
+        Commission float64 `json:"commission,string"`
+        CommissionAsset string `json:"commissionAsset"`
+        IsBestMatch bool `json:"isBestMatch"`
+        IsBuyer bool `json:"isBuyer"`
+        IsMaker bool `json:"isMaker"`
+        Price float64 `json:"price,string"`
+        Quantity float64 `json:"qty,string"`
+        Symbol string `json:"symbol"`
+        Time int64 `json:"time"`
+    }
+    TradeOrder struct {
+        Symbol string `json:"symbol"`
+        OrderId int64 `json:"orderId"`
+        ClientOrderId string `json:"clientOrderId"`
+        Time int64 `json:transactTime`
+        OrigQty float64 `json:"origQty,string"`
+        ExecutedQty float64 `json:"executedQty,string"`
+        Status string `json:"status"`
+        Type string `json:"type"`
+        Side string `json:"side"`
+        Fills []TradeFills
+    }
+    TradeFills struct {
+        Price float64 `json:"price,string"`
+        Quantity float64 `json:"qty,string"`
+        Commission float64 `json:"commission,string"`
+        CommissionAsset string `json:"commissionAsset"`
+    }
     SpotAccount struct {
         CanTrade bool `json:"canTrade"`
         TakerCommission int64 `json:"takerCommission"`
@@ -283,7 +312,7 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         if paramEnd != "-62135596800000" {
             params["endTime"] = paramEnd
         }
-        fmt.Println(params)
+        // fmt.Println(params)
         res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
         if err != nil {
             return err
@@ -441,26 +470,6 @@ func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
     return
 }
 
-// func (c *Client) OrderMargin(side string) {
-//     params := make(map[string]string)
-//     params["symbol"] = c.Symbol
-//     if side == "LONG" {
-//         params["side"] = "BUY"
-//     } else if side == "SHORT" {
-//         params["side"] = "SELL"
-//         params["sideEffectType"] = "MARGIN_BUY"
-//     }
-//     params["type"] = "MARKET"
-//     params["newOrderRespType"] = "FULL"
-//     // if (Configuration.BuyMax > 0)
-//     //     params["quantity"] = Configuration.BuyMax
-
-//     res, err := c.do(http.MethodGet, "/sapi/v1/margin/order", params, true)
-//     if err != nil {
-//         return
-//     }
-
-// }
 func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
@@ -522,4 +531,67 @@ func ConnectionDelay() (int64) {
     fmt.Println(serverTime, localTime)
 
     return diff
+}
+
+func (c *Client) OrderMargin(side, sideEffect string) {
+    var resp TradeOrder
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    params["side"] = side
+    params["sideEffectType"] = sideEffect
+    params["type"] = "MARKET"
+    params["newOrderRespType"] = "FULL"
+    // if (Configuration.BuyMax > 0)
+    //     params["quantity"] = Configuration.BuyMax
+
+    res, err := c.do(http.MethodGet, "/sapi/v1/margin/order", params, true)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    fmt.Println(resp)
+    fmt.Println(resp.Fills)
+}
+
+func (c *Client) Trade(signal string) {
+    command := strings.Split(signal)
+
+    if command[1] == "SHORT" {
+        if command[0] == "Close" || command[0] == "Exit" {
+            c.OrderMargin("BUY", "AUTO_REPAY")
+        } else if (command[0] == "Order") {
+            c.OrderMargin("SELL", "MARGIN_BUY")
+        }
+    } else if command[1] == "LONG" {
+        if command[0] == "Close" || command[0] == "Exit" {
+            c.OrderMargin("SELL", "NO_SIDE_EFFECT")
+        } else if (command[0] == "Order") {
+            c.OrderMargin("BUY", "NO_SIDE_EFFECT")
+        }
+    }
+
+
+    // Order SHORT: 
+    //     MARGIN_BUY
+    //     SELL
+
+    // Close/Exit SHORT:
+    //     AUTO_REPAY
+    //     BUY
+
+    // Order LONG:
+    //     NO_SIDE_EFFECT
+    //     BUY
+
+    // Close/Exit LONG:
+    //     NO_SIDE_EFFECT
+    //     SELL
 }
