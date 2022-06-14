@@ -39,14 +39,15 @@ func GetData() {
     if timeStart != 0 {
         Client.SetTimeframe(timeStart, timeEnd)
     }
-    wallet, err := Client.SpotBalance()
+    // wallet, err := Client.SpotBalance()
+    wallet, err := Client.MarginBalance()
     if err != nil {
         log.Fatal(err)
     }
     for _, coin := range wallet {
-        if coin.Free > 0 || coin.Locked > 0 {
+        // if coin.Free > 0 || coin.Locked > 0 {
             fmt.Println(coin)
-        }
+        // }
     }
     err = Client.GetCandles()
     if err != nil {

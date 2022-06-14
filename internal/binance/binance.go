@@ -170,7 +170,7 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
         req.Header.Add("X-MBX-APIKEY", configuration.ApiKey)
         params["timestamp"] = strconv.FormatInt(time.Now().UnixMilli(), 10)
     }
-    
+
     q := req.URL.Query()
     for key, val := range params {
         q.Set(key, val)
@@ -189,7 +189,22 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
 
 func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
     account, err := c.SpotAccount()
-    resp = account.Balances
+    for _, asset := range account.Balances {
+        if asset.Free != 0 || asset.Locked != 0 {
+            resp = account.Balances
+        }
+    }
+
+    return
+}
+
+func (c *Client) MarginBalance() (resp []MarginAsset, err error) {
+    account, err := c.MarginAccount()
+    for _, asset := range account.UserAssets {
+        if asset.NetAsset != 0 {
+            resp = append(resp, asset)
+        }
+    }
 
     return
 }
@@ -326,8 +341,7 @@ func (c *Client) SpotAccount() (resp SpotAccount, err error) {
     return
 }
 
-func (c *Client) MarginAccount() (result MarginAccount, err error) {
-    var resp MarginAccount
+func (c *Client) MarginAccount() (resp MarginAccount, err error) {
     res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil, true)
     if err != nil {
         return
@@ -365,6 +379,27 @@ func (c *Client) GetWallet() (result []Wallet, err error) {
     }
     return
 }
+
+// func (c *Client) OrderMargin(side string) {
+//     params := make(map[string]string)
+//     params["symbol"] = c.Symbol
+//     if side == "LONG" {
+//         params["side"] = "BUY"
+//     } else if side == "SHORT" {
+//         params["side"] = "SELL"
+//         params["sideEffectType"] = "MARGIN_BUY"
+//     }
+//     params["type"] = "MARKET"
+//     params["newOrderRespType"] = "FULL"
+//     // if (Configuration.BuyMax > 0)
+//     //     params["quantity"] = Configuration.BuyMax
+
+//     res, err := c.do(http.MethodGet, "/sapi/v1/margin/order", params, true)
+//     if err != nil {
+//         return
+//     }
+
+// }
 
 func QueryAPI(url string) ([]byte) {
     req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
