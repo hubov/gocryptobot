@@ -533,8 +533,8 @@ func ConnectionDelay() (int64) {
     return diff
 }
 
-func (c *Client) OrderMargin(side, sideEffect string) {
-    var resp TradeOrder
+func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err error) {
+    // var resp TradeOrder
     params := make(map[string]string)
     params["symbol"] = c.Symbol
     params["side"] = side
@@ -559,10 +559,11 @@ func (c *Client) OrderMargin(side, sideEffect string) {
 
     fmt.Println(resp)
     fmt.Println(resp.Fills)
+    return
 }
 
 func (c *Client) Trade(signal string) {
-    command := strings.Split(signal)
+    command := strings.Split(signal, " ")
 
     if command[1] == "SHORT" {
         if command[0] == "Close" || command[0] == "Exit" {
