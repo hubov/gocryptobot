@@ -211,13 +211,13 @@ func SingalExitLong() (result bool) {
     var tests []bool
     result = true
 
-    if Data[DataLen-1] < LastBuyPrice * 0.95 {
+    if Data[DataLen-1] <= LastBuyPrice * 0.95 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    if Data[DataLen-1] < LastBuyPrice * 1.1 {
+    if Data[DataLen-1] >= LastBuyPrice * 1.1 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -286,23 +286,23 @@ func SingalCloseShort() (result bool) {
 
 func SingalExitShort() (result bool) {
     var tests []bool
-    result = true
+    result = false
 
-    if Data[DataLen-1] < LastBuyPrice * 1.1 {
+    if Data[DataLen-1] <= LastBuyPrice * 0.9 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    if Data[DataLen-1] < LastBuyPrice * 0.95 {
+    if Data[DataLen-1] >= LastBuyPrice * 1.05 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
     for _, test := range tests {
-        if test == false {
-            result = false
+        if test == true {
+            result = true
         }
     }
 
@@ -323,7 +323,7 @@ func GetSignal() (signals []string) {
         } else if SymbolWorth < 0 {
             if SingalCloseShort() {
                 signals = append(signals, "Close SHORT")
-            } else if SingalExitLong() {
+            } else if SingalExitShort() {
                 signals = append(signals, "Exit SHORT")
             }
         }
