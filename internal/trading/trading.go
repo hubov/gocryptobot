@@ -83,13 +83,13 @@ func SimOrder(signal string) {
 }
 
 func Trade() {
-	signals := strategy.GetSignal()
-	for _, signal := range signals {
-		if (signal != "WAIT") {
-			fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
-			strategy.Trade(signal)
-		} else {
-			fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
-		}
-	}
+	// signals := strategy.GetSignal()
+	// for _, signal := range signals {
+	// 	if (signal != "WAIT") {
+	// 		fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+	// 		strategy.Trade(signal)
+	// 	} else {
+	// 		fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+	// 	}
+	// }
 }
