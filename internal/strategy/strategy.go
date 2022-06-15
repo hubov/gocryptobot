@@ -207,9 +207,29 @@ func SingalCloseLong() (result bool) {
     return
 }
 
-func SingalExitLong() bool {
-    // based on purchase price
-    return false
+func SingalExitLong() (result bool) {
+    var tests []bool
+    result = true
+
+    if Data[DataLen-1] < LastBuyPrice * 0.95 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    if Data[DataLen-1] < LastBuyPrice * 1.1 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    for _, test := range tests {
+        if test == false {
+            result = false
+        }
+    }
+
+    return result
 }
 
 func SignalOrderShort() (result bool) {
@@ -264,9 +284,29 @@ func SingalCloseShort() (result bool) {
     return
 }
 
-func SingalExitShort() bool {
-    // based on purchase price
-    return false
+func SingalExitShort() (result bool) {
+    var tests []bool
+    result = true
+
+    if Data[DataLen-1] < LastBuyPrice * 1.1 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    if Data[DataLen-1] < LastBuyPrice * 0.95 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    for _, test := range tests {
+        if test == false {
+            result = false
+        }
+    }
+
+    return result
 }
 
 func GetSignal() (signals []string) {
