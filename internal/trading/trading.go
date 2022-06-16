@@ -72,9 +72,7 @@ func Simulation(startTime, endTime time.Time) {
 			for _, signal := range signals {
 				if (signal != "WAIT") {
 					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
-					SimOrder(signal, candles[strategy.Client.Interval][i].Open)
-				} else {
-					// fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.GetSignal(), candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime)
 				}
 			}
 			i++
@@ -84,16 +82,29 @@ func Simulation(startTime, endTime time.Time) {
 	}
 }
 
-func SimOrder(signal string, price float64) {
+func SimOrder(signal string, price float64, tradeTime int64) {
 	command := strings.Split(signal, " ")
 	var quantity float64
 
     if command[1] == "SHORT" {
-        if command[0] == "Close" || command[0] == "Exit" {
+        if command[0] == "Exit" {
+        	quantity = math.Abs(SimWallet.BaseQuantity)
+
+        	SimWallet.BaseQuantity = SimWallet.BaseQuantity + quantity
+        	SimWallet.QuoteQuantity = SimWallet.QuoteQuantity - quantity * strategy.ExitPrice
+
+        	change := math.Round(((strategy.LastBuyPrice - price) / strategy.LastBuyPrice * 100) * 100) / 100
+        	fmt.Println(change,  "%")
+
+        	strategy.LastBuyPrice = 0
+        } else if command[0] == "Close" {
         	quantity = math.Abs(SimWallet.BaseQuantity)
 
         	SimWallet.BaseQuantity = SimWallet.BaseQuantity + quantity
         	SimWallet.QuoteQuantity = SimWallet.QuoteQuantity - quantity * price
+
+        	change := math.Round(((strategy.LastBuyPrice - price) / strategy.LastBuyPrice * 100) * 100) / 100
+        	fmt.Println(change,  "%")
 
         	strategy.LastBuyPrice = 0
         } else if (command[0] == "Order") {
@@ -106,11 +117,24 @@ func SimOrder(signal string, price float64) {
         }
         strategy.SymbolWorth = SimWallet.BaseQuantity / price
     } else if command[1] == "LONG" {
-        if command[0] == "Close" || command[0] == "Exit" {
+        if command[0] == "Exit" {
             quantity = SimWallet.BaseQuantity
 
             SimWallet.BaseQuantity = 0
+            SimWallet.QuoteQuantity = SimWallet.QuoteQuantity + quantity * strategy.ExitPrice
+
+            change := math.Round(((price - strategy.LastBuyPrice) / strategy.LastBuyPrice * 100) * 100) / 100
+        	fmt.Println(change,  "%")
+
+            strategy.LastBuyPrice = 0
+        } else if command[0] == "Close" {
+        	quantity = SimWallet.BaseQuantity
+
+            SimWallet.BaseQuantity = 0
             SimWallet.QuoteQuantity = SimWallet.QuoteQuantity + quantity * price
+
+            change := math.Round(((price - strategy.LastBuyPrice) / strategy.LastBuyPrice * 100) * 100) / 100
+        	fmt.Println(change,  "%")
 
             strategy.LastBuyPrice = 0
         } else if (command[0] == "Order") {
@@ -132,7 +156,7 @@ func SimOrder(signal string, price float64) {
 		Operation: signal,
 		Price: price,
 		Quantity: quantity,
-		TradeTime: time.Now().UTC(),
+		TradeTime: time.UnixMilli(tradeTime).UTC(),
 	}
 	SimTradingHistory = append(SimTradingHistory, row)
 }

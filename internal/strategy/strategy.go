@@ -30,6 +30,12 @@ var S3 float64
 var R3 float64
 var LastBuyPrice float64
 var SymbolWorth float64
+var PivotSignal = make(map[int][]int64)
+var DataExitLow []float64
+var DataExitLowLen int
+var DataExitHigh []float64
+var DataExitHighLen int
+var ExitPrice float64
 
 func SetTimeframe(start, end int64) {
     timeStart = start
@@ -75,10 +81,38 @@ func Calculate() {
     _, Rsi = indicator.RsiPeriod(2, Data)
     RsiLen = len(Rsi)
 
-    data1D := Candles["1d"][len(Candles["1d"]) - 1]
-    PivotPoint = (data1D.High + data1D.Low + data1D.Close) / 3
-    S1 = 2*PivotPoint - data1D.High
-    R1 = 2*PivotPoint - data1D.Low
+    DataExitLow = GetValues(Client.Interval, 1, "low")
+    DataExitLowLen = len(DataExitLow)
+    DataExitHigh = GetValues(Client.Interval, 1, "high")
+    DataExitHighLen = len(DataExitHigh)
+
+    data1DLen := len(Candles["1d"])
+    dataLen := len(Candles[Client.Interval])
+    i := data1DLen - 6
+    j := dataLen - 501
+    for j < dataLen && i < data1DLen {
+        for i < (data1DLen - 1) && Candles[Client.Interval][j].CloseTime > Candles["1d"][i].CloseTime {
+            i++
+        }
+        
+        PivotPoint = (Candles["1d"][i].High + Candles["1d"][i].Low + Candles["1d"][i].Close) / 3
+        S1 = 2*PivotPoint - Candles["1d"][i].High
+        R1 = 2*PivotPoint - Candles["1d"][i].Low
+
+        if Candles[Client.Interval][j].Close > R1 {
+            PivotSignal[j] = append(PivotSignal[j], 1, Candles[Client.Interval][j].OpenTime)
+        } else if Candles[Client.Interval][j].Close < S1 {
+            PivotSignal[j] = append(PivotSignal[j], -1, Candles[Client.Interval][j].OpenTime)
+        } else {
+            if PivotSignal[j - 1] != nil {
+                PivotSignal[j] = append(PivotSignal[j], PivotSignal[j - 1][0], Candles[Client.Interval][j].OpenTime)
+            } else {
+                PivotSignal[j] = append(PivotSignal[j], 0, Candles[Client.Interval][j].OpenTime)
+            }
+        }
+
+        j++
+    }
     // S2 = PivotPoint - (R1 - S1)
     // R2 = PivotPoint + (R1 - S1)
     // S3 = data1D.Low - 2 * (data1D.High - PivotPoint)
@@ -116,6 +150,8 @@ func GetValuesParams(interval string, period int, periodType string) (result []f
     return
 }
 
+func LongLimit() (result float64) {
+    result = LastBuyPrice * 1.1
 
 // ######################################
 // ######################################
@@ -144,14 +180,26 @@ func GetValuesParams(interval string, period int, periodType string) (result []f
 //         else
 //             0 
 
+func LongStop() (result float64) {
+    result = LastBuyPrice * 0.95
 
+    return
+}
 
+func ShortLimit() (result float64) {
+    result = LastBuyPrice * 0.9
 
 // ######################################
 // ######################################
 // ######################################
+    return
+}
 
+func ShortStop() (result float64) {
+    result = LastBuyPrice * 1.05
 
+    return
+}
 
 func SignalOrderLong() (result bool) {
     var tests []bool
@@ -164,14 +212,12 @@ func SignalOrderLong() (result bool) {
     }
 
     if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
-    // if Rsi[RsiLen-1] < 5 && Rsi[RsiLen-2] >= 5 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    // if (Data[DataLen-1] > S1) {
-    if (Data[DataLen-1] > R1) {
+    if PivotSignal[len(PivotSignal) - 1][0] == 1 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -211,14 +257,16 @@ func SingalExitLong() (result bool) {
     var tests []bool
     result = true
 
-    if Data[DataLen-1] <= LastBuyPrice * 0.95 {
+    if DataExitLow[DataExitLowLen-1] <= LongStop() {
         tests = append(tests, true)
+        ExitPrice = LongStop()
     } else {
         tests = append(tests, false)
     }
 
-    if Data[DataLen-1] >= LastBuyPrice * 1.1 {
+    if DataExitHigh[DataExitHighLen-1] >= LongLimit() {
         tests = append(tests, true)
+        ExitPrice = LongLimit()
     } else {
         tests = append(tests, false)
     }
@@ -243,14 +291,12 @@ func SignalOrderShort() (result bool) {
     }
 
     if Rsi[RsiLen-2] >= 95 && Rsi[RsiLen-1] < 95 {
-    // if Rsi[RsiLen-1] >= 95 && Rsi[RsiLen-2] < 95 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
     }
 
-    // if (Data[DataLen-1] < R1) {
-    if (Data[DataLen-1] < S1) {
+    if PivotSignal[len(PivotSignal) - 1][0] == -1 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -288,14 +334,16 @@ func SingalExitShort() (result bool) {
     var tests []bool
     result = false
 
-    if Data[DataLen-1] <= LastBuyPrice * 0.9 {
+    if DataExitLow[DataExitLowLen-1] <= ShortLimit() {
         tests = append(tests, true)
+        ExitPrice = ShortLimit()
     } else {
         tests = append(tests, false)
     }
 
-    if Data[DataLen-1] >= LastBuyPrice * 1.05 {
+    if DataExitHigh[DataExitHighLen-1] >= ShortStop() {
         tests = append(tests, true)
+        ExitPrice = ShortStop()
     } else {
         tests = append(tests, false)
     }
