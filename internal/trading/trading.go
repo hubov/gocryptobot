@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"math"
+	"os"
+	"log"
 )
 
 type (
@@ -166,10 +168,20 @@ func Trade() {
 		
 		fmt.Println(time.Now().UTC(), "[", signal, "]", strategy.Candles[strategy.Client.Interval][len(strategy.Candles[strategy.Client.Interval]) - 1].Close, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
 
+		file, _ := openLogFile("./log/live-trading.log")
+		infoLog := log.New(file, "[" + signal + "] ", log.LstdFlags|log.Lmicroseconds)
+		infoLog.Println(strategy.Candles[strategy.Client.Interval][len(strategy.Candles[strategy.Client.Interval]) - 1].Close, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
 
 		if (tradeTime == true) {
 			// strategy.Trade(signal)
 		}
 	}
 }
+
+func openLogFile(path string) (logFile *os.File, err error) {
+	logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return
 }
