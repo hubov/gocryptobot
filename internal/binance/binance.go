@@ -11,6 +11,8 @@ import (
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
+    "sync"
+    "strings"
 )
 
 type (
@@ -22,6 +24,8 @@ type (
         Interval string
         TimeStart string
         TimeEnd string
+        IntervalsCount int64
+        Candles []Candle
     }
     Configuration struct {
         Host string
@@ -34,6 +38,35 @@ type (
         BaseSymbol string `json:"base_symbol"`
         QuoteSymbol string `json:"quote_symbol"`
         Interval string
+    }
+    TradeHistory struct {
+        Commission float64 `json:"commission,string"`
+        CommissionAsset string `json:"commissionAsset"`
+        IsBestMatch bool `json:"isBestMatch"`
+        IsBuyer bool `json:"isBuyer"`
+        IsMaker bool `json:"isMaker"`
+        Price float64 `json:"price,string"`
+        Quantity float64 `json:"qty,string"`
+        Symbol string `json:"symbol"`
+        Time int64 `json:"time"`
+    }
+    TradeOrder struct {
+        Symbol string `json:"symbol"`
+        OrderId int64 `json:"orderId"`
+        ClientOrderId string `json:"clientOrderId"`
+        Time int64 `json:transactTime`
+        OrigQty float64 `json:"origQty,string"`
+        ExecutedQty float64 `json:"executedQty,string"`
+        Status string `json:"status"`
+        Type string `json:"type"`
+        Side string `json:"side"`
+        Fills []TradeFills
+    }
+    TradeFills struct {
+        Price float64 `json:"price,string"`
+        Quantity float64 `json:"qty,string"`
+        Commission float64 `json:"commission,string"`
+        CommissionAsset string `json:"commissionAsset"`
     }
     SpotAccount struct {
         CanTrade bool `json:"canTrade"`
@@ -62,15 +95,6 @@ type (
         Locked float64 `json:"locked,string"`
         NetAsset float64 `json:"netAsset,string"`
     }
-    Wallet struct {
-        Coin string `json:"coin"`
-        Name string `json:"name"`
-        Free float64 `json:"free,string"`
-        Freeze float64 `json:"freeze,string"`
-        Locked float64 `json:"locked,string"`
-        Storage float64 `json:"storage,string"`
-        Withdrawing float64 `json:"withdrawing,string"`
-    }
     Candle struct {
         OpenTime int64
         Open float64
@@ -85,11 +109,21 @@ type (
         TakerBuyQuoteAssetVolume float64
         Ignore float64
     }
+    PriceTicker struct {
+        Symbol string `json:"symbol"`
+        Price float64 `json:"price,string"`
+    }
 )
 
 var configuration Configuration
 var candleStart = "-62135596800000"
 var candleEnd = "-62135596800000"
+var intervals = make(map[string]int)
+var Candles []Candle
+var BaseSymbol MarginAsset
+var QuoteSymbol MarginAsset
+var LastBuyPrice float64
+var SymbolWorth float64
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -105,7 +139,6 @@ func init() {
       fmt.Println("error:", err)
     }
 
-    intervals := make(map[string]int)
     intervals["1m"] = 60000
     intervals["3m"] = 180000
     intervals["5m"] = 300000
@@ -134,6 +167,7 @@ func ApiClient(timeout time.Duration) *Client {
         Interval: configuration.Trade.Interval,
         TimeStart: "-62135596800000",
         TimeEnd: "-62135596800000",
+        IntervalsCount: 0,
     }
 }
 
@@ -166,7 +200,7 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
         req.Header.Add("X-MBX-APIKEY", configuration.ApiKey)
         params["timestamp"] = strconv.FormatInt(time.Now().UnixMilli(), 10)
     }
-    
+
     q := req.URL.Query()
     for key, val := range params {
         q.Set(key, val)
@@ -185,7 +219,22 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
 
 func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
     account, err := c.SpotAccount()
-    resp = account.Balances
+    for _, asset := range account.Balances {
+        if asset.Free != 0 || asset.Locked != 0 {
+            resp = account.Balances
+        }
+    }
+
+    return
+}
+
+func (c *Client) MarginBalance() (resp []MarginAsset, err error) {
+    account, err := c.MarginAccount()
+    for _, asset := range account.UserAssets {
+        if asset.NetAsset != 0 {
+            resp = append(resp, asset)
+        }
+    }
 
     return
 }
@@ -199,51 +248,102 @@ func StrToFloat(input string) (res float64) {
 }
 
 func (c *Client) SetTimeframe(start, end int64) {
+    start = start - int64(500 * intervals[c.Interval])
     c.TimeStart = strconv.FormatInt(start, 10)
     c.TimeEnd = strconv.FormatInt(end, 10)
 
+    c.countIntervals()
+    if c.IntervalsCount != 0 && c.IntervalsCount < 500 {
+        panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
+    }
+
     return
 }
 
-func (c *Client) GetCandles() (resp []Candle, err error) {
-    resp, err = c.GetCandlesParams(c.Symbol, c.Interval)
+func (c *Client) countIntervals() {
+    startInt, _ := strconv.Atoi(c.TimeStart)
+    endInt, _ := strconv.Atoi(c.TimeEnd)
+    start := time.UnixMilli(int64(startInt))
+    end := time.UnixMilli(int64(endInt))
+    timeDifference := end.Sub(start)
+    c.IntervalsCount = timeDifference.Milliseconds() / int64(intervals[c.Interval])
+}
+
+func (c *Client) GetCandles() (err error) {
+    err = c.GetCandlesParams(c.Symbol, c.Interval)
 
     return
 }
 
-func (c *Client) GetCandlesParams(symbol, interval string) (resp []Candle, err error) {
+func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
     params := make(map[string]string)
-    params["symbol"] = symbol
-    params["interval"] = interval
-    if candleStart != "-62135596800000" {
-        params["startTime"] = candleStart
-    }
-    if candleEnd != "-62135596800000" {
-        params["endTime"] = candleEnd
-    }
-    // fmt.Println(params)
-    res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
-    // bodyString := string(body)
-    // fmt.Println(bodyString)
+    var paramStart, paramEnd string
+    var candlesToGet int64
     var CandlesArray [][]interface{}
-    if err = json.Unmarshal(body, &CandlesArray); err != nil {
-        return resp, err
+
+    if c.TimeStart != "-62135596800000" {
+        paramStart = c.TimeStart
+    } else {
+        paramStart = "-62135596800000"
     }
-    // fmt.Println(CandlesArray)
-    for i, candle := range CandlesArray {
-        // candleInstance = new(Candle)
-        resp = append(resp, Candle{})
-        resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
+    if c.TimeEnd != "-62135596800000" {
+        paramEnd = c.TimeEnd
+    } else {
+        paramEnd = "-62135596800000"
     }
+
+    if c.IntervalsCount != 0 {
+        candlesToGet = c.IntervalsCount
+    } else {
+        candlesToGet = 500
+    }
+
+    for candlesToGet > 0 {
+        if candlesToGet >= 1000 {
+            params["limit"] = "1000"
+        } else {
+            params["limit"] = strconv.FormatInt(candlesToGet, 10)
+        }
+        params["symbol"] = symbol
+        params["interval"] = interval
+        if paramStart != "-62135596800000" {
+            params["startTime"] = paramStart
+        }
+        if paramEnd != "-62135596800000" {
+            params["endTime"] = paramEnd
+        }
+        res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
+        if err != nil {
+            return err
+        }
+        defer res.Body.Close()
+        body, err := ioutil.ReadAll(res.Body)
+        if err != nil {
+            return err
+        }
+        if err = json.Unmarshal(body, &CandlesArray); err != nil {
+            return err
+        }
+
+        candlesLength := len(c.Candles)
+        for i, candle := range CandlesArray {
+            c.Candles = append(c.Candles, Candle{})
+            c.Candles[candlesLength + i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
+        }
+
+        if len(CandlesArray) > 0 {
+            candlesToGet = candlesToGet - int64(len(CandlesArray))
+            paramStart = strconv.FormatInt(c.Candles[len(c.Candles) - 1].CloseTime + 1, 10)
+        } else {
+            candlesToGet = 0
+        }
+    }
+
     return
+}
+
+func (c *Client) returnCandles() (candles []Candle) {
+    return c.Candles
 }
 
 func (c *Client) SpotAccount() (resp SpotAccount, err error) {
@@ -262,8 +362,7 @@ func (c *Client) SpotAccount() (resp SpotAccount, err error) {
     return
 }
 
-func (c *Client) MarginAccount() (result MarginAccount, err error) {
-    var resp MarginAccount
+func (c *Client) MarginAccount() (resp MarginAccount, err error) {
     res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil, true)
     if err != nil {
         return
@@ -279,9 +378,70 @@ func (c *Client) MarginAccount() (result MarginAccount, err error) {
     return
 }
 
-func (c *Client) GetWallet() (result []Wallet, err error) {
-    var resp []Wallet
-    res, err := c.do(http.MethodGet, "/sapi/v1/capital/config/getall", nil, true)
+func (c *Client) GetWallet() {
+    var wallet MarginAccount
+    var trades []TradeHistory
+    var ticker PriceTicker
+    var err error
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        wallet, err = c.MarginAccount()
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
+    wg.Add(1)
+    go func() {
+        trades, err = c.GetLastTrades()
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
+    wg.Add(1)
+    go func() {
+        ticker, err = c.GetPriceTicker()
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
+    wg.Wait()
+    for _, coin := range wallet.UserAssets {
+        if (coin.NetAsset != 0) {
+            fmt.Println(coin)
+        }
+
+        if coin.Asset == configuration.Trade.BaseSymbol {
+            BaseSymbol = coin
+            if coin.NetAsset != 0 {
+                var timestamp int64
+                var prices float64
+                var quantity float64
+                for i := len(trades)-1; i>=0; i-- {
+                    if (timestamp == 0) {
+                        timestamp = trades[i].Time
+                    } else if timestamp != trades[i].Time {
+                        break
+                    }
+                    prices = prices + trades[i].Price * trades[i].Quantity
+                    quantity = quantity + trades[i].Quantity
+                }
+                LastBuyPrice = prices / quantity
+            }
+            SymbolWorth = BaseSymbol.NetAsset * ticker.Price
+        } else if coin.Asset == configuration.Trade.QuoteSymbol {
+            QuoteSymbol = coin
+        }
+    }
+}
+
+func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    res, err := c.do(http.MethodGet, "/api/v3/ticker/price", params, false)
     if err != nil {
         return
     }
@@ -293,12 +453,26 @@ func (c *Client) GetWallet() (result []Wallet, err error) {
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
-    for _, coin := range resp {
-        sum := coin.Free + coin.Freeze + coin.Locked + coin.Storage + coin.Withdrawing
-        if (sum > 0) {
-            result = append(result, coin)
-        }
+
+    return
+}
+
+func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    res, err := c.do(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
+    if err != nil {
+        return
     }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
     return
 }
 
@@ -344,4 +518,50 @@ func ConnectionDelay() (int64) {
     fmt.Println(serverTime, localTime)
 
     return diff
+}
+
+func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    params["side"] = side
+    params["sideEffectType"] = sideEffect
+    params["type"] = "MARKET"
+    params["newOrderRespType"] = "FULL"
+    // if (Configuration.BuyMax > 0)
+    //     params["quantity"] = Configuration.BuyMax
+
+    res, err := c.do(http.MethodGet, "/sapi/v1/margin/order", params, true)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    fmt.Println(resp)
+    fmt.Println(resp.Fills)
+    return
+}
+
+func (c *Client) Trade(signal string) {
+    command := strings.Split(signal, " ")
+
+    if command[1] == "SHORT" {
+        if command[0] == "Close" || command[0] == "Exit" {
+            c.OrderMargin("BUY", "AUTO_REPAY")
+        } else if (command[0] == "Order") {
+            c.OrderMargin("SELL", "MARGIN_BUY")
+        }
+    } else if command[1] == "LONG" {
+        if command[0] == "Close" || command[0] == "Exit" {
+            c.OrderMargin("SELL", "NO_SIDE_EFFECT")
+        } else if (command[0] == "Order") {
+            c.OrderMargin("BUY", "NO_SIDE_EFFECT")
+        }
+    }
 }
