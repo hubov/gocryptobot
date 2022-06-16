@@ -88,7 +88,7 @@ func Calculate() {
     data1DLen := len(Candles["1d"])
     dataLen := len(Candles[Client.Interval])
     i := data1DLen - 6
-    j := dataLen - 501
+    j := dataLen - 500
     for j < dataLen && i < data1DLen {
         for i < (data1DLen - 1) && Candles[Client.Interval][j].CloseTime > Candles["1d"][i].CloseTime {
             i++
