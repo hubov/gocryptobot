@@ -312,7 +312,6 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         if paramEnd != "-62135596800000" {
             params["endTime"] = paramEnd
         }
-        // fmt.Println(params)
         res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
         if err != nil {
             return err
@@ -320,23 +319,16 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         defer res.Body.Close()
         body, err := ioutil.ReadAll(res.Body)
         if err != nil {
-            return /*resp, */err
+            return err
         }
-        // bodyString := string(body)
-        // fmt.Println(bodyString)
         if err = json.Unmarshal(body, &CandlesArray); err != nil {
             return err
         }
-        // fmt.Println(CandlesArray)
 
         candlesLength := len(c.Candles)
         for i, candle := range CandlesArray {
-            // candleInstance = new(Candle)
-            //resp = append(resp, Candle{})
-            //resp[i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
             c.Candles = append(c.Candles, Candle{})
             c.Candles[candlesLength + i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
-            // fmt.Println(c.Candles[candlesLength + i].OpenTime, c.Candles[candlesLength + i].Open)
         }
 
         if len(CandlesArray) > 0 {
@@ -347,7 +339,6 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         }
     }
 
-    // fmt.Println(len(resp))
     return
 }
 
@@ -439,12 +430,8 @@ func (c *Client) GetWallet() {
                     quantity = quantity + trades[i].Quantity
                 }
                 LastBuyPrice = prices / quantity
-                for _, trade := range trades {
-                    fmt.Println(trade)
-                }
             }
             SymbolWorth = BaseSymbol.NetAsset * ticker.Price
-            fmt.Println(SymbolWorth)
         } else if coin.Asset == configuration.Trade.QuoteSymbol {
             QuoteSymbol = coin
         }
@@ -534,7 +521,6 @@ func ConnectionDelay() (int64) {
 }
 
 func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err error) {
-    // var resp TradeOrder
     params := make(map[string]string)
     params["symbol"] = c.Symbol
     params["side"] = side
@@ -578,21 +564,4 @@ func (c *Client) Trade(signal string) {
             c.OrderMargin("BUY", "NO_SIDE_EFFECT")
         }
     }
-
-
-    // Order SHORT: 
-    //     MARGIN_BUY
-    //     SELL
-
-    // Close/Exit SHORT:
-    //     AUTO_REPAY
-    //     BUY
-
-    // Order LONG:
-    //     NO_SIDE_EFFECT
-    //     BUY
-
-    // Close/Exit LONG:
-    //     NO_SIDE_EFFECT
-    //     SELL
 }

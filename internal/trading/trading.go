@@ -32,15 +32,10 @@ func Simulation(startTime, endTime time.Time) {
 		startTimeUnix := startTime.UnixMilli()
 		endTimeUnix := endTime.UnixMilli()
 
-		// fmt.Println(startTimeUnix, endTimeUnix)
-
 		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
 		strategy.GetData()
 		candles := strategy.Candles
 		intervalsCount := int(strategy.IntervalsCount)
-
-		// fmt.Println(intervalsCount)
-		// fmt.Println(strategy.Client.Interval)
 
 		var intervalIterators = make(map[string]int)
 		if len(candles) > 1 {
@@ -50,10 +45,6 @@ func Simulation(startTime, endTime time.Time) {
 				}
 			}
 		}
-
-		// fmt.Println(intervalIterators)
-
-		// fmt.Println(candles)
 
 		var i int
 		i = 501
@@ -77,6 +68,8 @@ func Simulation(startTime, endTime time.Time) {
 			}
 			i++
 		}
+
+		fmt.Println(SimWallet)
 	} else {
 		strategy.GetSignal()
 	}
@@ -148,9 +141,6 @@ func SimOrder(signal string, price float64, tradeTime int64) {
 
         strategy.SymbolWorth = SimWallet.BaseQuantity / price
     }
-
-    fmt.Println(quantity, price)
-    fmt.Println(SimWallet)
 
     row := SimTrading{
 		Operation: signal,

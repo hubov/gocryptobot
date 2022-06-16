@@ -3,7 +3,6 @@ package strategy
 import (
 	"github.com/hubov/gocryptobot/internal/binance"
     "github.com/cinar/indicator"
-	// "fmt"
 	"time"
 	"log"
     "math"
@@ -117,8 +116,6 @@ func Calculate() {
     // R2 = PivotPoint + (R1 - S1)
     // S3 = data1D.Low - 2 * (data1D.High - PivotPoint)
     // R3 = data1D.High + 2 * (PivotPoint - data1D.Low)
-
-    // fmt.Println(data[dataLen-1], S1)
 }
 
 func GetValues(interval string, period int, periodType string) (result []float64) {
@@ -153,32 +150,8 @@ func GetValuesParams(interval string, period int, periodType string) (result []f
 func LongLimit() (result float64) {
     result = LastBuyPrice * 1.1
 
-// ######################################
-// ######################################
-// ######################################
-
-// pos := if close > R1 {
-//     1 KUP
-// } else {
-//     if close < S1 {
-//         -1 SPRZEDAJ
-//     }
-// }
-
-
-
-
-
-
-// S = S1
-// B = R1
-// pos := if (close > R1)
-//         1 (buy)
-//         else
-//        if (close < S1)
-//          -1 (sell)
-//         else
-//             0 
+    return
+}
 
 func LongStop() (result float64) {
     result = LastBuyPrice * 0.95
@@ -189,9 +162,6 @@ func LongStop() (result float64) {
 func ShortLimit() (result float64) {
     result = LastBuyPrice * 0.9
 
-// ######################################
-// ######################################
-// ######################################
     return
 }
 
@@ -222,8 +192,6 @@ func SignalOrderLong() (result bool) {
     } else {
         tests = append(tests, false)
     }
-
-    // fmt.Println(tests)
 
     for _, test := range tests {
         if test == false {
