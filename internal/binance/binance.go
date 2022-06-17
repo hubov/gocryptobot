@@ -530,7 +530,7 @@ func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err erro
     // if (Configuration.BuyMax > 0)
     //     params["quantity"] = Configuration.BuyMax
 
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/order", params, true)
+    res, err := c.do(http.MethodPost, "/sapi/v1/margin/order", params, true)
     if err != nil {
         return
     }
