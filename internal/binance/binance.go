@@ -13,6 +13,7 @@ import (
     "encoding/hex"
     "sync"
     "strings"
+    "math"
 )
 
 type (
@@ -33,6 +34,15 @@ type (
         ApiSecret string `json:"api_secret"`
         Name string
         Trade Trade
+    }
+    ExchangeInfo struct {
+        Symbols []Symbol `json:"symbols"`
+    }
+    Symbol struct {
+        Symbol string `json:"symbol"`
+        BaseAssetPrecision int `json:"baseAssetPrecision"`
+        QuoteAssetPrecision int `json:"quoteAssetPrecision"`
+        Filters []interface{} `json:"filters"`
     }
     Trade struct {
         BaseSymbol string `json:"base_symbol"`
@@ -113,6 +123,11 @@ type (
         Symbol string `json:"symbol"`
         Price float64 `json:"price,string"`
     }
+    Wallet struct {
+        BaseQuantity float64
+        BaseBorrowedQuantity float64
+        QuoteQuantity float64
+    }
 )
 
 var configuration Configuration
@@ -124,6 +139,9 @@ var BaseSymbol MarginAsset
 var QuoteSymbol MarginAsset
 var LastBuyPrice float64
 var SymbolWorth float64
+var TradingPairWallet Wallet
+var exchangeInfo ExchangeInfo
+var exchange = make(map[string]float64)
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -378,6 +396,23 @@ func (c *Client) MarginAccount() (resp MarginAccount, err error) {
     return
 }
 
+func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
+    res, err := c.do(http.MethodGet, "/api/v3/exchangeInfo?symbol=" + c.Symbol, nil, false)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    return
+}
+
 func (c *Client) GetWallet() {
     var wallet MarginAccount
     var trades []TradeHistory
@@ -408,6 +443,25 @@ func (c *Client) GetWallet() {
         }
         wg.Done()
     }()
+    wg.Add(1)
+    go func() {
+        exchangeInfo, err = c.GetOrderPrecision()
+        for _, filter := range exchangeInfo.Symbols[0].Filters {
+            if filter.(map[string]interface{})["filterType"] == "PRICE_FILTER" {
+                exchange["minPrice"], _ = strconv.ParseFloat(filter.(map[string]interface{})["minPrice"].(string), 10)
+                exchange["maxPrice"], _ = strconv.ParseFloat(filter.(map[string]interface{})["maxPrice"].(string), 10)
+                exchange["priceTick"], _ = strconv.ParseFloat(filter.(map[string]interface{})["tickSize"].(string), 10)
+            } else if filter.(map[string]interface{})["filterType"] == "LOT_SIZE" {
+                exchange["minQty"], _ = strconv.ParseFloat(filter.(map[string]interface{})["minQty"].(string), 10)
+                exchange["maxQty"], _ = strconv.ParseFloat(filter.(map[string]interface{})["maxQty"].(string), 10)
+                exchange["stepSize"], _ = strconv.ParseFloat(filter.(map[string]interface{})["stepSize"].(string), 10)
+            }
+        }
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
     wg.Wait()
     for _, coin := range wallet.UserAssets {
         if (coin.NetAsset != 0) {
@@ -416,6 +470,8 @@ func (c *Client) GetWallet() {
 
         if coin.Asset == configuration.Trade.BaseSymbol {
             BaseSymbol = coin
+            TradingPairWallet.BaseQuantity = BaseSymbol.NetAsset
+            TradingPairWallet.BaseBorrowedQuantity = BaseSymbol.NetAsset
             if coin.NetAsset != 0 {
                 var timestamp int64
                 var prices float64
@@ -434,6 +490,7 @@ func (c *Client) GetWallet() {
             SymbolWorth = BaseSymbol.NetAsset * ticker.Price
         } else if coin.Asset == configuration.Trade.QuoteSymbol {
             QuoteSymbol = coin
+            TradingPairWallet.QuoteQuantity = QuoteSymbol.NetAsset
         }
     }
 }
@@ -520,13 +577,21 @@ func ConnectionDelay() (int64) {
     return diff
 }
 
-func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err error) {
+func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect string) (resp TradeOrder, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
     params["side"] = side
     params["sideEffectType"] = sideEffect
     params["type"] = "MARKET"
     params["newOrderRespType"] = "FULL"
+    if quantity != 0 {
+        params["quantity"] = strconv.FormatFloat(quantity, 'f', -1, 64)
+    } else {
+        if quoteOrderQty != 0 {
+            params["quoteOrderQty"] = strconv.FormatFloat(quoteOrderQty, 'f', -1, 64)
+        }
+    }
+    fmt.Println(params)
     // if (Configuration.BuyMax > 0)
     //     params["quantity"] = Configuration.BuyMax
 
@@ -536,6 +601,7 @@ func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err erro
     }
     defer res.Body.Close()
     body, err := ioutil.ReadAll(res.Body)
+    fmt.Println(string(body))
     if err != nil {
         return resp, err
     }
@@ -548,20 +614,32 @@ func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err erro
     return
 }
 
-func (c *Client) Trade(signal string) {
+func GetBaseQuantity() float64 {
+    return TradingPairWallet.BaseQuantity
+}
+
+func GetQuoteQuantity() float64 {
+    return TradingPairWallet.QuoteQuantity
+}
+
+func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {
     command := strings.Split(signal, " ")
+
+    power := math.Round(1 / exchange["stepSize"])
+    quantity = float64(int(quantity * power)) / power
+    quoteOrderQty = float64(int(quoteOrderQty * power)) / power
 
     if command[1] == "SHORT" {
         if command[0] == "Close" || command[0] == "Exit" {
-            c.OrderMargin("BUY", "AUTO_REPAY")
+            c.OrderMargin(quantity, 0, "BUY", "AUTO_REPAY")
         } else if (command[0] == "Order") {
-            c.OrderMargin("SELL", "MARGIN_BUY")
+            c.OrderMargin(0, quoteOrderQty, "SELL", "MARGIN_BUY")
         }
     } else if command[1] == "LONG" {
         if command[0] == "Close" || command[0] == "Exit" {
-            c.OrderMargin("SELL", "NO_SIDE_EFFECT")
+            c.OrderMargin(quantity, 0, "SELL", "NO_SIDE_EFFECT")
         } else if (command[0] == "Order") {
-            c.OrderMargin("BUY", "NO_SIDE_EFFECT")
+            c.OrderMargin(0, quoteOrderQty, "BUY", "NO_SIDE_EFFECT")
         }
     }
 }

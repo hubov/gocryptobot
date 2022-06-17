@@ -6,6 +6,7 @@ import (
 	"time"
 	"log"
     "math"
+    "fmt"
 )
 
 var Candles = make(map[string][]binance.Candle)
@@ -35,6 +36,14 @@ var DataExitLowLen int
 var DataExitHigh []float64
 var DataExitHighLen int
 var ExitPrice float64
+
+func GetBaseQuantity() float64 {
+    return binance.GetBaseQuantity()
+}
+
+func GetQuoteQuantity() float64 {
+    return binance.GetQuoteQuantity()
+}
 
 func SetTimeframe(start, end int64) {
     timeStart = start
@@ -359,7 +368,8 @@ func GetSignal() (signals []string) {
 }
 
 func Trade(signal string) {
-    Client.Trade(signal)
+    fmt.Println(GetBaseQuantity(), GetQuoteQuantity())
+    Client.Trade(math.Abs(GetBaseQuantity()), GetQuoteQuantity(), signal)
     // pass additional vars:
     // AMOUNT IF MARGIN SELL/BUY
 }
