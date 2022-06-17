@@ -11,6 +11,7 @@ func main() {
     isSimulation := flag.Bool("sim", false, "execute a silumation")
     startTime := flag.String("start", "", "start time for simulation")
     endTime := flag.String("end", "", "end time for simulation")
+    signal := flag.String("signal", "", "manual order trigger")
 
     flag.Parse()
 
@@ -33,6 +34,9 @@ func main() {
 
     if simulate == true {
         trading.Simulation(timeParsedStart, timeParsedEnd)
+    } else if *signal != "" {
+        signalString := *signal
+        trading.TriggerTrade(signalString)
     } else {
         for {
             now := GetWallclockNow()

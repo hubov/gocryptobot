@@ -8,6 +8,8 @@ import (
 	"math"
 	"os"
 	"log"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type (
@@ -176,6 +178,21 @@ func Trade() {
 			// strategy.Trade(signal)
 		}
 	}
+}
+
+func TriggerTrade(signal string) {
+	strategy.GetData()
+	strategy.GetSignal()
+
+	command := strings.Split(signal, " ")
+
+	titler :=  cases.Title(language.English)
+	upper :=  cases.Upper(language.English)
+	command[0] = titler.String(command[0])
+	command[1] = upper.String(command[1])
+
+	fmt.Println("TRADE!!!")
+	strategy.Trade(command[0] + " " + command[1])
 }
 
 func openLogFile(path string) (logFile *os.File, err error) {
