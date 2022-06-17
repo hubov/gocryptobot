@@ -174,6 +174,11 @@ func Trade() {
 		infoLog := log.New(file, "[" + signal + "] ", log.LstdFlags|log.Lmicroseconds)
 		infoLog.Println(strategy.Candles[strategy.Client.Interval][len(strategy.Candles[strategy.Client.Interval]) - 1].Close, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
 
+		command := strings.Split(signal, " ")
+
+		if command[0] == "Exit" {
+			// exit trade
+		}
 		if (tradeTime == true) {
 			// strategy.Trade(signal)
 		}
