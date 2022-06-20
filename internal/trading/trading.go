@@ -64,9 +64,9 @@ func Simulation(startTime, endTime time.Time) {
 
 			strategy.SetData(strategy.Update)
 			signals := strategy.GetSignal()
-			for _, signal := range signals {
+			for k, signal := range signals {
 				if (signal != "WAIT") {
-					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
 					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime)
 				}
 			}
@@ -168,11 +168,11 @@ func Trade() {
 			tradeTime = false
 		}
 		
-		fmt.Println(time.Now().UTC(), "[", signal, "]", strategy.Candles[strategy.Client.Interval][len(strategy.Candles[strategy.Client.Interval]) - 1].Close, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+		fmt.Println(time.Now().UTC(), strategy.Response[len(strategy.Response) - 1])
 
 		file, _ := openLogFile("./log/live-trading.log")
-		infoLog := log.New(file, "[" + signal + "] ", log.LstdFlags|log.Lmicroseconds)
-		infoLog.Println(strategy.Candles[strategy.Client.Interval][len(strategy.Candles[strategy.Client.Interval]) - 1].Close, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+		infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
+		infoLog.Println(strategy.Response[len(strategy.Response) - 1])
 
 		command := strings.Split(signal, " ")
 

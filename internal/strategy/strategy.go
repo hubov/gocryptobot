@@ -7,6 +7,7 @@ import (
 	"log"
     "math"
     "fmt"
+    "strconv"
 )
 
 var Candles = make(map[string][]binance.Candle)
@@ -36,6 +37,7 @@ var DataExitLowLen int
 var DataExitHigh []float64
 var DataExitHighLen int
 var ExitPrice float64
+var Response []string
 
 func GetBaseQuantity() float64 {
     return binance.GetBaseQuantity()
@@ -77,6 +79,7 @@ func GetData() {
 
 func SetData(candles map[string][]binance.Candle) {
     Candles = candles
+    Response = nil
 }
 
 func Calculate() {
@@ -366,6 +369,21 @@ func GetSignal() (signals []string) {
     if (len(signals) == 0) {
         signals = append(signals, "WAIT")
     }
+// fmt.Println(len(Candles[Client.Interval]), Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Open)
+    response := " [ " + signals[len(signals) - 1] + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1][0])
+    Response = append(Response, response)
+
+    return
+}
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
+}
+
+func int2str(input int64) (output string) {
+    output = strconv.FormatInt(input, 10)
 
     return
 }
