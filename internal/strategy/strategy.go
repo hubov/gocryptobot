@@ -97,15 +97,18 @@ func Calculate() {
     data1DLen := len(Candles["1d"])
     dataLen := len(Candles[Client.Interval])
     i := data1DLen - 6
+    iDayBefore := 0;
     j := dataLen - 500
     for j < dataLen && i < data1DLen {
         for i < (data1DLen - 1) && Candles[Client.Interval][j].CloseTime > Candles["1d"][i].CloseTime {
             i++
         }
+
+        iDayBefore = i - 1
         
-        PivotPoint = (Candles["1d"][i].High + Candles["1d"][i].Low + Candles["1d"][i].Close) / 3
-        S1 = 2*PivotPoint - Candles["1d"][i].High
-        R1 = 2*PivotPoint - Candles["1d"][i].Low
+        PivotPoint = (Candles["1d"][iDayBefore].High + Candles["1d"][iDayBefore].Low + Candles["1d"][iDayBefore].Close) / 3
+        S1 = 2*PivotPoint - Candles["1d"][iDayBefore].High
+        R1 = 2*PivotPoint - Candles["1d"][iDayBefore].Low
 
         if Candles[Client.Interval][j].Close > R1 {
             PivotSignal[j] = append(PivotSignal[j], 1, Candles[Client.Interval][j].OpenTime)

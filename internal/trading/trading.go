@@ -55,7 +55,7 @@ func Simulation(startTime, endTime time.Time) {
 		for i < intervalsCount {
 			strategy.Update[strategy.Client.Interval] = candles[strategy.Client.Interval][0:i]
 			for key, value := range intervalIterators {
-				for candles[key][value].CloseTime < candles[strategy.Client.Interval][i].CloseTime {
+				for candles[key][value].OpenTime < candles[strategy.Client.Interval][i].OpenTime {
 					value++
 					intervalIterators[key] = value
 				}
