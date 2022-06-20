@@ -177,10 +177,9 @@ func Trade() {
 		command := strings.Split(signal, " ")
 
 		if command[0] == "Exit" {
-			// exit trade
-		}
-		if (tradeTime == true) {
-			// strategy.Trade(signal)
+			strategy.Trade(signal)
+		} else if (tradeTime == true) {
+			strategy.Trade(signal)
 		}
 	}
 }
