@@ -413,7 +413,27 @@ func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
     return
 }
 
-func (c *Client) GetWallet() {
+func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
+    params := make(map[string]string)
+    params["asset"] = BaseSymbol.Asset
+    params["amount"] = float2str(amount)
+    res, err := c.do(http.MethodPost, "/sapi/v1/margin/repay", params, true)
+    if err != nil {
+        return
+    }
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+        return resp, err
+    }
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    return
+}
+
+func (c *Client) GetWallet(isLive bool) {
     var wallet MarginAccount
     var trades []TradeHistory
     var ticker PriceTicker
@@ -486,6 +506,20 @@ func (c *Client) GetWallet() {
                     quantity = quantity + trades[i].Quantity
                 }
                 LastBuyPrice = prices / quantity
+            }
+            if isLive == true {
+                if coin.Borrowed > 0 && coin.Free > 0 {
+                    var repay float64
+                    if coin.Borrowed < coin.Free {
+                        repay = coin.Borrowed
+                    } else if coin.Borrowed > coin.Free {
+                        repay = coin.Free
+                    }
+                    fmt.Println(repay)
+                    if repay > 0 {
+                        c.RepayLoan(repay)
+                    }
+                }
             }
             SymbolWorth = BaseSymbol.NetAsset * ticker.Price
         } else if coin.Asset == configuration.Trade.QuoteSymbol {
@@ -622,12 +656,24 @@ func GetQuoteQuantity() float64 {
     return TradingPairWallet.QuoteQuantity
 }
 
+func RoundTradeQuantity(input float64) (output float64) {
+    power := math.Round(1 / exchange["stepSize"])
+    output = float64(int(input * power)) / power
+
+    return
+}
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
+}
+
 func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {
     command := strings.Split(signal, " ")
 
-    power := math.Round(1 / exchange["stepSize"])
-    quantity = float64(int(quantity * power)) / power
-    quoteOrderQty = float64(int(quoteOrderQty * power)) / power
+    quantity = RoundTradeQuantity(quantity)
+    quoteOrderQty = RoundTradeQuantity(quoteOrderQty)
 
     if command[1] == "SHORT" {
         if command[0] == "Close" || command[0] == "Exit" {

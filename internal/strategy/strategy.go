@@ -52,13 +52,13 @@ func SetTimeframe(start, end int64) {
     timeEnd = end
 }
 
-func GetData() {
+func GetData(isLive bool) {
     defaultTimeout := time.Second * 10
     Client = binance.ApiClient(defaultTimeout)
     if timeStart != 0 {
         Client.SetTimeframe(timeStart, timeEnd)
     }
-    Client.GetWallet()
+    Client.GetWallet(isLive)
     LastBuyPrice = binance.LastBuyPrice
     SymbolWorth = binance.SymbolWorth
     err := Client.GetCandles()
@@ -369,7 +369,7 @@ func GetSignal() (signals []string) {
     if (len(signals) == 0) {
         signals = append(signals, "WAIT")
     }
-// fmt.Println(len(Candles[Client.Interval]), Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Open)
+
     response := " [ " + signals[len(signals) - 1] + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1][0])
     Response = append(Response, response)
 

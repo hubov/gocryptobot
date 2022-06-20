@@ -37,7 +37,7 @@ func Simulation(startTime, endTime time.Time) {
 		endTimeUnix := endTime.UnixMilli()
 
 		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
-		strategy.GetData()
+		strategy.GetData(false)
 		candles := strategy.Candles
 		intervalsCount := int(strategy.IntervalsCount)
 
@@ -158,7 +158,7 @@ func SimOrder(signal string, price float64, tradeTime int64) {
 func Trade() {
 	var tradeTime bool
 
-	strategy.GetData()
+	strategy.GetData(true)
 	signals := strategy.GetSignal()
 	for _, signal := range signals {
 		if (time.Now().Minute() == 14 || time.Now().Minute() == 29 || time.Now().Minute() == 44 || time.Now().Minute() == 59) {
@@ -186,7 +186,7 @@ func Trade() {
 }
 
 func TriggerTrade(signal string) {
-	strategy.GetData()
+	strategy.GetData(true)
 	strategy.GetSignal()
 
 	command := strings.Split(signal, " ")
