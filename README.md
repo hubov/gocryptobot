@@ -12,7 +12,7 @@ Bot was tested in the version 1.18.2 of Go.
 ```
 
 ### Binance API Key
-Binance `API Key` and `API Secret` with restriction set to:
+Binance `API Key` with restrictions set to:
 - Enable Reading
 - Enable Spot & Margin Trading
 - Enable Loan, Repay & Transfer
@@ -194,9 +194,15 @@ The bot has an implemented simple strategy based on:
 You can adjust it according to your needs or completely change it in `Strategy.go`
 
 ### Indicators
-The bot uses the [Indicator](https://github.com/cinar/indicator) package with a wide selection of trading indicators ready to be used goCryptoBot's strategies. You can also add your own in the function `Calculate()`
+The bot uses the [Indicator](https://github.com/cinar/indicator) package with a wide selection of trading indicators ready to be used in goCryptoBot's strategies. You can also add your own in the function `Calculate()`
 
 ## Upgrading the bot
 ```
 git pull origin
 ```
+
+## Disclaimer
+This document and software **do not encourage** you to invest in or trade digital currencies. This is **not an investment advice**.
+Using this software may only take place **at your own risk**.
+The user of the software is aware that its use **may lead to the loss** of some or all of the funds involved. The author of the software takes **no responsibility for any losses** incurred as a result of the operation of the software.
+The author of the script cannot be held responsible for any misuse of the script.
