@@ -106,6 +106,14 @@ type (
         Locked float64 `json:"locked,string"`
         NetAsset float64 `json:"netAsset,string"`
     }
+    MarginPair struct {
+        Base string `json:"base"`
+        IsBuyAllowed bool `json:"isBuyAllowed"`
+        IsSellAllowed bool `json:"isSellAllowed"`
+        IsMarginTrade bool `json:"isMarginTrade"`
+        Quote string `json:"quote"`
+        Symbol string `json:"symbol"`
+    }
     Candle struct {
         OpenTime int64
         Open float64
@@ -323,6 +331,15 @@ func (c *Client) SetTimeframe(start, end int64) {
     c.countIntervals()
     if c.IntervalsCount != 0 && c.IntervalsCount < 500 {
         panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
+    }
+
+    return
+}
+
+func (c *Client) GetAllMarginPairs() (availablePairs []MarginPair) {
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/allPairs", nil, true)
+    if err = json.Unmarshal(body, &availablePairs); err != nil {
+        return
     }
 
     return
