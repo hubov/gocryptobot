@@ -14,6 +14,7 @@ import (
     "sync"
     "strings"
     "math"
+    "log"
 )
 
 type (
@@ -128,6 +129,10 @@ type (
         BaseBorrowedQuantity float64
         QuoteQuantity float64
     }
+    ErrorApi struct {
+        Code int64 `json:"code"`
+        Msg string `json:"msg"`
+    }
 )
 
 var configuration Configuration
@@ -235,6 +240,51 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
     return c.HttpClient.Do(req) 
 }
 
+func (c *Client) queryAPI(method, endpoint string, params map[string]string, auth bool) (body []byte, err error) {
+    refresh := 4
+    var res *http.Response
+    for refresh > 0 {
+        res, err = c.do(http.MethodGet, endpoint, params, auth)
+        if err != nil {
+            return
+        }
+        defer res.Body.Close()
+        body, err = ioutil.ReadAll(res.Body)
+        if err != nil {
+            return
+        }
+
+        var errorApi ErrorApi
+        if err = json.Unmarshal(body, &errorApi); err != nil {
+            return
+        }
+        if errorApi.Code != 0 {
+            file, _ := openLogFile("./log/errors.log")
+            infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
+            infoLog.Println(endpoint, string(body))
+            fmt.Println("API Error", errorApi.Code)
+            switch errorApi.Code {
+            case -1003: {
+                time.Sleep(5 * time.Minute)
+                os.Exit(-1003)
+            }
+            case -1015: {
+                time.Sleep(1 * time.Minute)
+                os.Exit(-1015)
+            }
+            default: {
+                time.Sleep(10 * time.Second)
+                refresh--
+            }
+            }
+        } else {
+            refresh = 0
+        }
+    }
+
+    return
+}
+
 func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
     account, err := c.SpotAccount()
     for _, asset := range account.Balances {
@@ -330,15 +380,7 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         if paramEnd != "-62135596800000" {
             params["endTime"] = paramEnd
         }
-        res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
-        if err != nil {
-            return err
-        }
-        defer res.Body.Close()
-        body, err := ioutil.ReadAll(res.Body)
-        if err != nil {
-            return err
-        }
+        body, err := c.queryAPI(http.MethodGet, "/api/v3/klines", params, false)
         if err = json.Unmarshal(body, &CandlesArray); err != nil {
             return err
         }
@@ -365,15 +407,7 @@ func (c *Client) returnCandles() (candles []Candle) {
 }
 
 func (c *Client) SpotAccount() (resp SpotAccount, err error) {
-    res, err := c.do(http.MethodGet, "/api/v3/account", nil, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/account", nil, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -381,15 +415,7 @@ func (c *Client) SpotAccount() (resp SpotAccount, err error) {
 }
 
 func (c *Client) MarginAccount() (resp MarginAccount, err error) {
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/account", nil, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -397,15 +423,7 @@ func (c *Client) MarginAccount() (resp MarginAccount, err error) {
 }
 
 func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
-    res, err := c.do(http.MethodGet, "/api/v3/exchangeInfo?symbol=" + c.Symbol, nil, false)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/exchangeInfo?symbol="/* + c.Symbol*/, nil, false)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -417,15 +435,7 @@ func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
     params := make(map[string]string)
     params["asset"] = BaseSymbol.Asset
     params["amount"] = float2str(amount)
-    res, err := c.do(http.MethodPost, "/sapi/v1/margin/repay", params, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/repay", params, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -438,6 +448,7 @@ func (c *Client) GetWallet(isLive bool) {
     var trades []TradeHistory
     var ticker PriceTicker
     var err error
+
     wg := sync.WaitGroup{}
     wg.Add(1)
     go func() {
@@ -532,15 +543,7 @@ func (c *Client) GetWallet(isLive bool) {
 func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
-    res, err := c.do(http.MethodGet, "/api/v3/ticker/price", params, false)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/ticker/price", params, false)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -551,33 +554,12 @@ func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
 func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
 
     return
-}
-
-func QueryAPI(url string) ([]byte) {
-    req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
-    req.Header.Add("Accept", "application/json")
-    req.Header.Add("X-MBX-APIKEY", configuration.ApiKey)
-
-
-    res, _ := http.DefaultClient.Do(req)
-    defer res.Body.Close()
-    body, _ := ioutil.ReadAll(res.Body)
-
-    return body
 }
 
 func DecodeJSON(input []byte) (map[string]interface{}) {
@@ -587,28 +569,6 @@ func DecodeJSON(input []byte) (map[string]interface{}) {
         panic(err)
     }
     return data
-}
-
-func Ping() ([]byte) {
-    return QueryAPI("/api/v3/ping")
-}
-
-func ServerTime() (int64) {
-    result := QueryAPI("/api/v3/time")
-    data := DecodeJSON(result)
-    serverTime := data["serverTime"].(float64)
-    resultTime := int64(serverTime)
-
-    return resultTime
-}
-
-func ConnectionDelay() (int64) {
-    serverTime := ServerTime()
-    localTime := time.Now().UnixMilli()
-    diff := localTime - serverTime
-    fmt.Println(serverTime, localTime)
-
-    return diff
 }
 
 func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect string) (resp TradeOrder, err error) {
@@ -629,16 +589,8 @@ func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect s
     // if (Configuration.BuyMax > 0)
     //     params["quantity"] = Configuration.BuyMax
 
-    res, err := c.do(http.MethodPost, "/sapi/v1/margin/order", params, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
+    body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/order", params, true)
     fmt.Println(string(body))
-    if err != nil {
-        return resp, err
-    }
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -688,4 +640,12 @@ func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {
             c.OrderMargin(0, quoteOrderQty, "BUY", "NO_SIDE_EFFECT")
         }
     }
+}
+
+func openLogFile(path string) (logFile *os.File, err error) {
+    logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return
 }
