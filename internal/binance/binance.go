@@ -423,7 +423,7 @@ func (c *Client) MarginAccount() (resp MarginAccount, err error) {
 }
 
 func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
-    body, err := c.queryAPI(http.MethodGet, "/api/v3/exchangeInfo?symbol="/* + c.Symbol*/, nil, false)
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/exchangeInfo?symbol=" + c.Symbol, nil, false)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
