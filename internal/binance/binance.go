@@ -244,7 +244,7 @@ func (c *Client) queryAPI(method, endpoint string, params map[string]string, aut
     refresh := 4
     var res *http.Response
     for refresh > 0 {
-        res, err = c.do(http.MethodGet, endpoint, params, auth)
+        res, err = c.do(method, endpoint, params, auth)
         if err != nil {
             return
         }
