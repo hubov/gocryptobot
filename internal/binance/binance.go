@@ -157,18 +157,7 @@ var exchangeInfo ExchangeInfo
 var exchange = make(map[string]float64)
 
 func init() {
-    file, err := os.Open("config/config.json")
-    if err != nil {
-        fmt.Println("File reading error", err)
-        return
-    }
-    defer file.Close()
-    decoder := json.NewDecoder(file)
-    configuration = Configuration{}
-    err = decoder.Decode(&configuration)
-    if err != nil {
-      fmt.Println("error:", err)
-    }
+    SetConfig("", "", "")
 
     intervals["1m"] = 60000
     intervals["3m"] = 180000
@@ -654,6 +643,30 @@ func float2str(input float64) (output string) {
     output = strconv.FormatFloat(input, 'f', -1, 64)
 
     return
+}
+
+func SetConfig(base, quote, interval string) {
+    file, err := os.Open("config/config.json")
+    if err != nil {
+        fmt.Println("File reading error", err)
+        return
+    }
+    defer file.Close()
+    decoder := json.NewDecoder(file)
+    configuration = Configuration{}
+    err = decoder.Decode(&configuration)
+    if err != nil {
+      fmt.Println("error:", err)
+    }
+
+    if base != "" && quote != "" {
+        configuration.Trade.BaseSymbol = base
+        configuration.Trade.QuoteSymbol = quote
+    }
+    
+    if (interval != "") {
+        configuration.Trade.Interval = interval
+    }
 }
 
 func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {

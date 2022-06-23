@@ -388,6 +388,10 @@ func int2str(input int64) (output string) {
     return
 }
 
+func SetConfig(base, quote, interval string) {
+    binance.SetConfig(base, quote, interval)
+}
+
 func Trade(signal string) {
     fmt.Println(GetBaseQuantity(), GetQuoteQuantity())
     Client.Trade(math.Abs(GetBaseQuantity()), GetQuoteQuantity(), signal)

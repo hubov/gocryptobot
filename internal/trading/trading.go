@@ -28,9 +28,11 @@ type (
 var SimTradingHistory []SimTrading
 var SimWallet Wallet
 
-func Simulation(startTime, endTime time.Time) {
+func Simulation(startTime, endTime time.Time, base, quote, interval string) {
 	SimWallet.BaseQuantity = 0
 	SimWallet.QuoteQuantity = 1000
+
+	strategy.SetConfig(base, quote, interval)
 
 	if !startTime.IsZero() && !endTime.IsZero() {
 		startTimeUnix := startTime.UnixMilli()
