@@ -340,11 +340,11 @@ func SingalExitShort() (result bool) {
     return result
 }
 
-func GetSignal() (signals []string) {
+func GetSignal(isLive bool) (signals []string) {
     Calculate()
 
     // if the Cryptocurrency value in wallet is significant try to close/exit position
-    if (math.Abs(SymbolWorth) >= 2) {
+    if math.Abs(SymbolWorth) >= 2 || isLive == false {
         if SymbolWorth > 0 {
             if SingalCloseLong() {
                 signals = append(signals, "Close LONG")

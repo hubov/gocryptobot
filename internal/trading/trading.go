@@ -63,7 +63,7 @@ func Simulation(startTime, endTime time.Time) {
 			}
 
 			strategy.SetData(strategy.Update)
-			signals := strategy.GetSignal()
+			signals := strategy.GetSignal(false)
 			for k, signal := range signals {
 				if (signal != "WAIT") {
 					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
@@ -75,7 +75,7 @@ func Simulation(startTime, endTime time.Time) {
 
 		fmt.Println(SimWallet)
 	} else {
-		strategy.GetSignal()
+		strategy.GetSignal(false)
 	}
 }
 
@@ -159,7 +159,7 @@ func Trade() {
 	var tradeTime bool
 
 	strategy.GetData(true)
-	signals := strategy.GetSignal()
+	signals := strategy.GetSignal(true)
 	for _, signal := range signals {
 		if (time.Now().Minute() == 14 || time.Now().Minute() == 29 || time.Now().Minute() == 44 || time.Now().Minute() == 59) {
 			signal = "* " + signal + " *"
@@ -186,7 +186,7 @@ func Trade() {
 
 func TriggerTrade(signal string) {
 	strategy.GetData(true)
-	strategy.GetSignal()
+	strategy.GetSignal(true)
 
 	command := strings.Split(signal, " ")
 
