@@ -202,6 +202,10 @@ func ApiClient(timeout time.Duration) *Client {
     }
 }
 
+func (c *Client) ClearData() {
+    c.Candles = nil
+}
+
 func (c *Candle) Set(openTime int64, open, high, low, close, volume float64, closeTime int64, quoteAssetVolume float64, tradesNumber int64, takerBuyBaseAssetVolume, takerBuyQuoteAssetVolume, ignore float64) {
     c.OpenTime = openTime
     c.Open = open
@@ -323,15 +327,29 @@ func StrToFloat(input string) (res float64) {
     return
 }
 
-func (c *Client) SetTimeframe(start, end int64) {
-    start = start - int64(500 * intervals[c.Interval])
+func (c *Client) SetTimeframeOffset(start, end int64, offset int) {
+    start = start - int64(offset * intervals[c.Interval])
     c.TimeStart = strconv.FormatInt(start, 10)
     c.TimeEnd = strconv.FormatInt(end, 10)
 
     c.countIntervals()
-    if c.IntervalsCount != 0 && c.IntervalsCount < 500 {
-        panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
-    }
+    // if c.IntervalsCount != 0 && offset > 0 c.IntervalsCount < 500 {
+    //     panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
+    // }
+
+    return
+}
+
+func (c *Client) SetTimeframe(start, end int64) {
+    c.SetTimeframeOffset(start, end, 500)
+    // start = start - int64(500 * intervals[c.Interval])
+    // c.TimeStart = strconv.FormatInt(start, 10)
+    // c.TimeEnd = strconv.FormatInt(end, 10)
+
+    // c.countIntervals()
+    // if c.IntervalsCount != 0 && c.IntervalsCount < 500 {
+    //     panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
+    // }
 
     return
 }
