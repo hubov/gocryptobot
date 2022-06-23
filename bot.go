@@ -44,7 +44,7 @@ func main() {
     // os.Exit(3)
 
     if simulate == true {
-        trading.Simulation(timeParsedStart, timeParsedEnd, base, quote, interval)
+        trading.Simulation(timeParsedStart, timeParsedEnd, base, quote, interval, false)
     } else if *signal != "" {
         signalString := *signal
         trading.TriggerTrade(signalString)

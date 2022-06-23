@@ -7,37 +7,40 @@ import (
 	"log"
     "math"
     "fmt"
+    // "os"
     "strconv"
 )
 
-var Candles = make(map[string][]binance.Candle)
-var Update = make(map[string][]binance.Candle)
-var Client *binance.Client
-var defaultTimeout time.Duration
-var timeStart int64
-var timeEnd int64
-var IntervalsCount int64
-var Data []float64
-var DataLen int
-var Sma []float64
-var Rsi []float64
-var RsiLen int
-var PivotPoint float64
-var S1 float64
-var R1 float64
-var S2 float64
-var R2 float64
-var S3 float64
-var R3 float64
-var LastBuyPrice float64
-var SymbolWorth float64
-var PivotSignal = make(map[int][]int64)
-var DataExitLow []float64
-var DataExitLowLen int
-var DataExitHigh []float64
-var DataExitHighLen int
-var ExitPrice float64
-var Response []string
+var (
+	Candles = make(map[string][]binance.Candle)
+	Update = make(map[string][]binance.Candle)
+	Client *binance.Client
+	defaultTimeout time.Duration
+	timeStart int64
+	timeEnd int64
+	IntervalsCount int64
+	Data []float64
+	DataLen int
+	Sma []float64
+	Rsi []float64
+	RsiLen int
+	PivotPoint float64
+	S1 float64
+	R1 float64
+	S2 float64
+	R2 float64
+	S3 float64
+	R3 float64
+	LastBuyPrice float64
+	SymbolWorth float64
+	PivotSignal = make(map[int][]int64)
+	DataExitLow []float64
+	DataExitLowLen int
+	DataExitHigh []float64
+	DataExitHighLen int
+	ExitPrice float64
+	Response []string
+)
 
 func GetBaseQuantity() float64 {
     return binance.GetBaseQuantity()
@@ -70,10 +73,13 @@ func GetData(isLive bool) {
     IntervalsCount = Client.IntervalsCount
 
     client1D := binance.ApiClient(defaultTimeout)
+    client1D.SetTimeframeOffset(timeStart, timeEnd, 30)
     err = client1D.GetCandlesParams(client1D.Symbol, "1d")
     if err != nil {
         log.Fatal(err)
     }
+    fmt.Println(len(client1D.Candles))
+// os.Exit(100)
     Candles["1d"] = client1D.Candles
 }
 

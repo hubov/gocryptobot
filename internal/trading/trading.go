@@ -1,9 +1,11 @@
 package trading
 
 import (
+	// "encoding/csv"
 	"github.com/hubov/gocryptobot/internal/strategy"
 	"time"
 	"fmt"
+	"io"
 	"strings"
 	"math"
 	"os"
@@ -25,12 +27,47 @@ type (
 	}
 )
 
-var SimTradingHistory []SimTrading
-var SimWallet Wallet
+var  (
+	SimTradingHistory []SimTrading
+	SimWallet Wallet
+	symbol string
+)
 
-func Simulation(startTime, endTime time.Time, base, quote, interval string) {
+func lastFileLine(fileHandle *os.File) string {
+	line := ""
+    var cursor int64 = -1
+
+    stat, _ := fileHandle.Stat()
+    filesize := stat.Size()
+    if filesize > 0 {
+		for { 
+		    cursor -= 1
+		    fileHandle.Seek(cursor, io.SeekEnd)
+
+		    char := make([]byte, 1)
+		    fileHandle.Read(char)
+
+		    if cursor != -1 && (char[0] == 10 || char[0] == 13) {
+		        break
+		    }
+		    line = fmt.Sprintf("%s%s", string(char), line)
+		    if cursor <= -filesize {
+		        break
+		    }
+		}
+	}
+
+    return line
+}
+
+func SetSymbol(tradingSymbol string) {
+	symbol = tradingSymbol
+}
+
+func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool) {
 	SimWallet.BaseQuantity = 0
 	SimWallet.QuoteQuantity = 1000
+	symbol = base + quote
 
 	strategy.SetConfig(base, quote, interval)
 
@@ -52,11 +89,11 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string) {
 			}
 		}
 
-		var i int
-		i = 501
+		var i int = 501
 		for i < intervalsCount {
 			strategy.Update[strategy.Client.Interval] = candles[strategy.Client.Interval][0:i]
 			for key, value := range intervalIterators {
+				fmt.Println(key, value, i)
 				for candles[key][value].OpenTime < candles[strategy.Client.Interval][i].OpenTime {
 					value++
 					intervalIterators[key] = value
@@ -69,7 +106,7 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string) {
 			for k, signal := range signals {
 				if (signal != "WAIT") {
 					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
-					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime)
+					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime, tradeLog)
 				}
 			}
 			i++
@@ -81,7 +118,7 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string) {
 	}
 }
 
-func SimOrder(signal string, price float64, tradeTime int64) {
+func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool) {
 	command := strings.Split(signal, " ")
 	var quantity float64
 
@@ -90,7 +127,8 @@ func SimOrder(signal string, price float64, tradeTime int64) {
         	quantity = math.Abs(SimWallet.BaseQuantity)
 
         	SimWallet.BaseQuantity = SimWallet.BaseQuantity + quantity
-        	SimWallet.QuoteQuantity = SimWallet.QuoteQuantity - quantity * strategy.ExitPrice
+        	price = strategy.ExitPrice
+        	SimWallet.QuoteQuantity = SimWallet.QuoteQuantity - quantity * price
 
         	change := math.Round(((strategy.LastBuyPrice - price) / strategy.LastBuyPrice * 100) * 100) / 100
         	fmt.Println(change,  "%")
@@ -120,7 +158,8 @@ func SimOrder(signal string, price float64, tradeTime int64) {
             quantity = SimWallet.BaseQuantity
 
             SimWallet.BaseQuantity = 0
-            SimWallet.QuoteQuantity = SimWallet.QuoteQuantity + quantity * strategy.ExitPrice
+            price = strategy.ExitPrice
+            SimWallet.QuoteQuantity = SimWallet.QuoteQuantity + quantity * price
 
             change := math.Round(((price - strategy.LastBuyPrice) / strategy.LastBuyPrice * 100) * 100) / 100
         	fmt.Println(change,  "%")
@@ -155,6 +194,10 @@ func SimOrder(signal string, price float64, tradeTime int64) {
 		TradeTime: time.UnixMilli(tradeTime).UTC(),
 	}
 	SimTradingHistory = append(SimTradingHistory, row)
+
+	if tradeLog == true {
+		TradeLog(command[0], command[1], quantity, price)
+	}
 }
 
 func Trade() {
@@ -184,6 +227,16 @@ func Trade() {
 			strategy.Trade(signal)
 		}
 	}
+}
+
+func TradeLog(order, orderType string, amount, price float64) {
+	tradesFile, err := os.OpenFile("scans/trades/" + symbol + ".csv", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	line := lastFileLine(tradesFile)
+	fmt.Println("tradelog:", line)
 }
 
 func TriggerTrade(signal string) {

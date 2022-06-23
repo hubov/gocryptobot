@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/hubov/gocryptobot/internal/binance"
+	"github.com/hubov/gocryptobot/internal/trading"
 	"io"
 	"log"
 	"math"
@@ -45,7 +46,7 @@ scriptStart := time.Now()
     	}
 
     	if apiCallsLimit > 0 {
-	    	if baseFilter == "" && quoteFilter == "" || (baseFilter != "" && pair.Base == baseFilter || quoteFilter != "" && pair.Quote == quoteFilter) {
+	    	if baseFilter == "" && quoteFilter == "" || baseFilter != "" && pair.Base == baseFilter && quoteFilter != "" && pair.Quote == quoteFilter || (baseFilter != "" && quoteFilter == "" && pair.Base == baseFilter || quoteFilter != "" && baseFilter == "" && pair.Quote == quoteFilter) {
 	    		fmt.Println(pair)
 	    		var line string
 				candlesFile, err := os.OpenFile("scans/candles/" + pair.Symbol + ".csv", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
@@ -54,8 +55,7 @@ scriptStart := time.Now()
 	    		}
 
 	    		if (updateCandles == true) {
-	    			line = lastFileLine(candlesFile)
-					fmt.Println(line)
+	    			line = getFileLine(candlesFile, true)
 	    			now := time.Now().UTC()
 	    			var timeStart int64
 	    			var start time.Time
@@ -77,15 +77,12 @@ scriptStart := time.Now()
 
 	    			if candles2Update > 0 {
 	    				// candlesFile.Seek(0, io.SeekStart)
-	    				// 1000 queries * 1000 rows = 1 000 000 candles
 
 	    				fmt.Println(time.UnixMilli(timeStart).UTC(), timeStart)
 
 	    				client.SetTimeframeOffset(timeStart, now.UnixMilli(), 0)
 	    				client.ClearData()
-fmt.Println("candles before:", len(client.Candles))	    				
 	    				err = client.GetCandlesParams(pair.Symbol, interval) // Weight: 1 (IP)
-fmt.Println("candles after:", len(client.Candles))
 	    				apiCallsLimit -= int(math.Ceil(float64(candles2Update) / 1000))
 
 	    				candlesWriter := csv.NewWriter(candlesFile)
@@ -94,26 +91,39 @@ fmt.Println("candles after:", len(client.Candles))
 
 	    				for _, candle := range client.Candles {
 	    					row := []string{int2str(candle.OpenTime), int2str(candle.CloseTime), float2str(candle.Open), float2str(candle.High), float2str(candle.Low), float2str(candle.Close), float2str(candle.Volume), float2str(candle.QuoteAssetVolume), int2str(candle.TradesNumber), float2str(candle.TakerBuyBaseAssetVolume), float2str(candle.TakerBuyQuoteAssetVolume), float2str(candle.Ignore)}
-	    					// fmt.Println("ROW:", row)
-	    					// fmt.Println(candlesWriter)
-	    					// fmt.Println(candlesFile)
 	    					if (candle.OpenTime > fileLastUpdate) {
-	    						// fmt.Println(candle.OpenTime)
 								if err := candlesWriter.Write(row); err != nil {
 									log.Fatalln("error writing record to file", err)
 								}
-								// defer candlesWriter.Flush()
-								// fmt.Println(candlesWriter.Error())
 							}
-							
-	    					// os.Exit(4)
 	    				}
 	    				candlesWriter.Flush()
 	    				fmt.Println(candlesWriter.Error())
 	    			}
-	    			// os.Exit(2)
-	    			candlesFile.Close()
 	    		}
+	    		var lines []string = nil
+	    		var times []int64 = nil
+	    		lines = append(lines, getFileLine(candlesFile, false))
+	    		lines = append(lines, getFileLine(candlesFile, true))
+
+	    		fmt.Println(lines)
+
+	    		if len(lines) == 2 {
+	    			for _, line := range lines {
+	    				lineFields := strings.Split(line, ",")
+	    				lineTime, _ := strconv.ParseInt(lineFields[0], 10, 64)
+	    				times = append(times, lineTime)
+	    			}
+	    		} else {
+	    			panic("Something  went wrong.")
+	    		}
+
+// os.Exit(11)
+				
+	    		trading.Simulation(time.UnixMilli(times[0]), time.UnixMilli(times[1]), pair.Base, pair.Quote, interval, true)
+
+	    		candlesFile.Close()
+os.Exit(11)
 	   //  		candlesFile.Seek(0, io.SeekStart)
 	   //  		candlesReader := csv.NewReader(candlesFile)
 	   //  		for {
@@ -129,7 +139,7 @@ fmt.Println("candles after:", len(client.Candles))
 				// 		fmt.Printf("%s\n", record[value])
 				// 	}
 				// }
-	   //      	i++
+	        	i++
 	   //      	os.Exit(1)
 	    	}
 	    } else {
@@ -143,7 +153,6 @@ fmt.Println("Script time:", scriptEnd.Sub(scriptStart))
 os.Exit(3)
 }
 
-
 func fileExists(filepath string) bool {
     info, err := os.Stat(filepath)
     if os.IsNotExist(err) {
@@ -152,16 +161,27 @@ func fileExists(filepath string) bool {
     return !info.IsDir()
 }
 
-func lastFileLine(fileHandle *os.File) string {
+func getFileLine(fileHandle *os.File, reversed bool) string {
 	line := ""
-    var cursor int64 = -1
+    var cursor int64
+
+    if reversed == true {
+    	cursor = -1
+    } else {
+    	cursor = -1
+    }
 
     stat, _ := fileHandle.Stat()
     filesize := stat.Size()
     if filesize > 0 {
 		for { 
-		    cursor -= 1
-		    fileHandle.Seek(cursor, io.SeekEnd)
+			if reversed == true {
+		    	cursor -= 1
+		    	fileHandle.Seek(cursor, io.SeekEnd)
+			} else {
+				cursor += 1
+				fileHandle.Seek(cursor, io.SeekStart)
+			}
 
 		    char := make([]byte, 1)
 		    fileHandle.Read(char)
@@ -169,8 +189,12 @@ func lastFileLine(fileHandle *os.File) string {
 		    if cursor != -1 && (char[0] == 10 || char[0] == 13) {
 		        break
 		    }
-		    line = fmt.Sprintf("%s%s", string(char), line)
-		    if cursor <= -filesize {
+		    if reversed == true {
+		    	line = fmt.Sprintf("%s%s", string(char), line)
+		    } else {
+		    	line = fmt.Sprintf("%s%s", line, string(char))
+		    }
+		    if cursor <= -filesize || cursor >= +filesize {
 		        break
 		    }
 		}
