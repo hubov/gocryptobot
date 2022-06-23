@@ -13,6 +13,8 @@ import (
     "encoding/hex"
     "sync"
     "strings"
+    "math"
+    "log"
 )
 
 type (
@@ -33,6 +35,15 @@ type (
         ApiSecret string `json:"api_secret"`
         Name string
         Trade Trade
+    }
+    ExchangeInfo struct {
+        Symbols []Symbol `json:"symbols"`
+    }
+    Symbol struct {
+        Symbol string `json:"symbol"`
+        BaseAssetPrecision int `json:"baseAssetPrecision"`
+        QuoteAssetPrecision int `json:"quoteAssetPrecision"`
+        Filters []interface{} `json:"filters"`
     }
     Trade struct {
         BaseSymbol string `json:"base_symbol"`
@@ -113,6 +124,15 @@ type (
         Symbol string `json:"symbol"`
         Price float64 `json:"price,string"`
     }
+    Wallet struct {
+        BaseQuantity float64
+        BaseBorrowedQuantity float64
+        QuoteQuantity float64
+    }
+    ErrorApi struct {
+        Code int64 `json:"code"`
+        Msg string `json:"msg"`
+    }
 )
 
 var configuration Configuration
@@ -124,6 +144,9 @@ var BaseSymbol MarginAsset
 var QuoteSymbol MarginAsset
 var LastBuyPrice float64
 var SymbolWorth float64
+var TradingPairWallet Wallet
+var exchangeInfo ExchangeInfo
+var exchange = make(map[string]float64)
 
 func init() {
     file, err := os.Open("config/config.json")
@@ -215,6 +238,51 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
     }
 
     return c.HttpClient.Do(req) 
+}
+
+func (c *Client) queryAPI(method, endpoint string, params map[string]string, auth bool) (body []byte, err error) {
+    refresh := 4
+    var res *http.Response
+    for refresh > 0 {
+        res, err = c.do(method, endpoint, params, auth)
+        if err != nil {
+            return
+        }
+        defer res.Body.Close()
+        body, err = ioutil.ReadAll(res.Body)
+        if err != nil {
+            return
+        }
+
+        var errorApi ErrorApi
+        if err = json.Unmarshal(body, &errorApi); err != nil {
+            return
+        }
+        if errorApi.Code != 0 {
+            file, _ := openLogFile("./log/errors.log")
+            infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
+            infoLog.Println(endpoint, string(body))
+            fmt.Println("API Error", errorApi.Code)
+            switch errorApi.Code {
+            case -1003: {
+                time.Sleep(5 * time.Minute)
+                os.Exit(-1003)
+            }
+            case -1015: {
+                time.Sleep(1 * time.Minute)
+                os.Exit(-1015)
+            }
+            default: {
+                time.Sleep(10 * time.Second)
+                refresh--
+            }
+            }
+        } else {
+            refresh = 0
+        }
+    }
+
+    return
 }
 
 func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
@@ -312,15 +380,7 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         if paramEnd != "-62135596800000" {
             params["endTime"] = paramEnd
         }
-        res, err := c.do(http.MethodGet, "/api/v3/klines", params, false)
-        if err != nil {
-            return err
-        }
-        defer res.Body.Close()
-        body, err := ioutil.ReadAll(res.Body)
-        if err != nil {
-            return err
-        }
+        body, err := c.queryAPI(http.MethodGet, "/api/v3/klines", params, false)
         if err = json.Unmarshal(body, &CandlesArray); err != nil {
             return err
         }
@@ -347,15 +407,7 @@ func (c *Client) returnCandles() (candles []Candle) {
 }
 
 func (c *Client) SpotAccount() (resp SpotAccount, err error) {
-    res, err := c.do(http.MethodGet, "/api/v3/account", nil, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/account", nil, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -363,26 +415,40 @@ func (c *Client) SpotAccount() (resp SpotAccount, err error) {
 }
 
 func (c *Client) MarginAccount() (resp MarginAccount, err error) {
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/account", nil, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/account", nil, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
     return
 }
 
-func (c *Client) GetWallet() {
+func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/exchangeInfo?symbol=" + c.Symbol, nil, false)
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    return
+}
+
+func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
+    params := make(map[string]string)
+    params["asset"] = BaseSymbol.Asset
+    params["amount"] = float2str(amount)
+    body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/repay", params, true)
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    return
+}
+
+func (c *Client) GetWallet(isLive bool) {
     var wallet MarginAccount
     var trades []TradeHistory
     var ticker PriceTicker
     var err error
+
     wg := sync.WaitGroup{}
     wg.Add(1)
     go func() {
@@ -408,6 +474,25 @@ func (c *Client) GetWallet() {
         }
         wg.Done()
     }()
+    wg.Add(1)
+    go func() {
+        exchangeInfo, err = c.GetOrderPrecision()
+        for _, filter := range exchangeInfo.Symbols[0].Filters {
+            if filter.(map[string]interface{})["filterType"] == "PRICE_FILTER" {
+                exchange["minPrice"], _ = strconv.ParseFloat(filter.(map[string]interface{})["minPrice"].(string), 10)
+                exchange["maxPrice"], _ = strconv.ParseFloat(filter.(map[string]interface{})["maxPrice"].(string), 10)
+                exchange["priceTick"], _ = strconv.ParseFloat(filter.(map[string]interface{})["tickSize"].(string), 10)
+            } else if filter.(map[string]interface{})["filterType"] == "LOT_SIZE" {
+                exchange["minQty"], _ = strconv.ParseFloat(filter.(map[string]interface{})["minQty"].(string), 10)
+                exchange["maxQty"], _ = strconv.ParseFloat(filter.(map[string]interface{})["maxQty"].(string), 10)
+                exchange["stepSize"], _ = strconv.ParseFloat(filter.(map[string]interface{})["stepSize"].(string), 10)
+            }
+        }
+        if err != nil {
+            panic(err)
+        }
+        wg.Done()
+    }()
     wg.Wait()
     for _, coin := range wallet.UserAssets {
         if (coin.NetAsset != 0) {
@@ -416,6 +501,8 @@ func (c *Client) GetWallet() {
 
         if coin.Asset == configuration.Trade.BaseSymbol {
             BaseSymbol = coin
+            TradingPairWallet.BaseQuantity = BaseSymbol.NetAsset
+            TradingPairWallet.BaseBorrowedQuantity = BaseSymbol.NetAsset
             if coin.NetAsset != 0 {
                 var timestamp int64
                 var prices float64
@@ -431,9 +518,24 @@ func (c *Client) GetWallet() {
                 }
                 LastBuyPrice = prices / quantity
             }
+            if isLive == true {
+                if coin.Borrowed > 0 && coin.Free > 0 {
+                    var repay float64
+                    if coin.Borrowed < coin.Free {
+                        repay = coin.Borrowed
+                    } else if coin.Borrowed > coin.Free {
+                        repay = coin.Free
+                    }
+                    fmt.Println(repay)
+                    if repay > 0 {
+                        c.RepayLoan(repay)
+                    }
+                }
+            }
             SymbolWorth = BaseSymbol.NetAsset * ticker.Price
         } else if coin.Asset == configuration.Trade.QuoteSymbol {
             QuoteSymbol = coin
+            TradingPairWallet.QuoteQuantity = QuoteSymbol.NetAsset
         }
     }
 }
@@ -441,15 +543,7 @@ func (c *Client) GetWallet() {
 func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
-    res, err := c.do(http.MethodGet, "/api/v3/ticker/price", params, false)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/ticker/price", params, false)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -460,33 +554,12 @@ func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
 func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
 
     return
-}
-
-func QueryAPI(url string) ([]byte) {
-    req, _ := http.NewRequest("GET", (configuration.Host + url), nil)
-    req.Header.Add("Accept", "application/json")
-    req.Header.Add("X-MBX-APIKEY", configuration.ApiKey)
-
-
-    res, _ := http.DefaultClient.Do(req)
-    defer res.Body.Close()
-    body, _ := ioutil.ReadAll(res.Body)
-
-    return body
 }
 
 func DecodeJSON(input []byte) (map[string]interface{}) {
@@ -498,47 +571,26 @@ func DecodeJSON(input []byte) (map[string]interface{}) {
     return data
 }
 
-func Ping() ([]byte) {
-    return QueryAPI("/api/v3/ping")
-}
-
-func ServerTime() (int64) {
-    result := QueryAPI("/api/v3/time")
-    data := DecodeJSON(result)
-    serverTime := data["serverTime"].(float64)
-    resultTime := int64(serverTime)
-
-    return resultTime
-}
-
-func ConnectionDelay() (int64) {
-    serverTime := ServerTime()
-    localTime := time.Now().UnixMilli()
-    diff := localTime - serverTime
-    fmt.Println(serverTime, localTime)
-
-    return diff
-}
-
-func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err error) {
+func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect string) (resp TradeOrder, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
     params["side"] = side
     params["sideEffectType"] = sideEffect
     params["type"] = "MARKET"
     params["newOrderRespType"] = "FULL"
+    if quantity != 0 {
+        params["quantity"] = strconv.FormatFloat(quantity, 'f', -1, 64)
+    } else {
+        if quoteOrderQty != 0 {
+            params["quoteOrderQty"] = strconv.FormatFloat(quoteOrderQty, 'f', -1, 64)
+        }
+    }
+    fmt.Println(params)
     // if (Configuration.BuyMax > 0)
     //     params["quantity"] = Configuration.BuyMax
 
-    res, err := c.do(http.MethodGet, "/sapi/v1/margin/order", params, true)
-    if err != nil {
-        return
-    }
-    defer res.Body.Close()
-    body, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return resp, err
-    }
+    body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/order", params, true)
+    fmt.Println(string(body))
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -548,20 +600,52 @@ func (c *Client) OrderMargin(side, sideEffect string) (resp TradeOrder, err erro
     return
 }
 
-func (c *Client) Trade(signal string) {
+func GetBaseQuantity() float64 {
+    return TradingPairWallet.BaseQuantity
+}
+
+func GetQuoteQuantity() float64 {
+    return TradingPairWallet.QuoteQuantity
+}
+
+func RoundTradeQuantity(input float64) (output float64) {
+    power := math.Round(1 / exchange["stepSize"])
+    output = float64(int(input * power)) / power
+
+    return
+}
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
+}
+
+func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {
     command := strings.Split(signal, " ")
+
+    quantity = RoundTradeQuantity(quantity)
+    quoteOrderQty = RoundTradeQuantity(quoteOrderQty)
 
     if command[1] == "SHORT" {
         if command[0] == "Close" || command[0] == "Exit" {
-            c.OrderMargin("BUY", "AUTO_REPAY")
+            c.OrderMargin(quantity, 0, "BUY", "AUTO_REPAY")
         } else if (command[0] == "Order") {
-            c.OrderMargin("SELL", "MARGIN_BUY")
+            c.OrderMargin(0, quoteOrderQty, "SELL", "MARGIN_BUY")
         }
     } else if command[1] == "LONG" {
         if command[0] == "Close" || command[0] == "Exit" {
-            c.OrderMargin("SELL", "NO_SIDE_EFFECT")
+            c.OrderMargin(quantity, 0, "SELL", "NO_SIDE_EFFECT")
         } else if (command[0] == "Order") {
-            c.OrderMargin("BUY", "NO_SIDE_EFFECT")
+            c.OrderMargin(0, quoteOrderQty, "BUY", "NO_SIDE_EFFECT")
         }
     }
+}
+
+func openLogFile(path string) (logFile *os.File, err error) {
+    logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return
 }

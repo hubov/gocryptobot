@@ -6,6 +6,8 @@ import (
 	"time"
 	"log"
     "math"
+    "fmt"
+    "strconv"
 )
 
 var Candles = make(map[string][]binance.Candle)
@@ -35,19 +37,28 @@ var DataExitLowLen int
 var DataExitHigh []float64
 var DataExitHighLen int
 var ExitPrice float64
+var Response []string
+
+func GetBaseQuantity() float64 {
+    return binance.GetBaseQuantity()
+}
+
+func GetQuoteQuantity() float64 {
+    return binance.GetQuoteQuantity()
+}
 
 func SetTimeframe(start, end int64) {
     timeStart = start
     timeEnd = end
 }
 
-func GetData() {
+func GetData(isLive bool) {
     defaultTimeout := time.Second * 10
     Client = binance.ApiClient(defaultTimeout)
     if timeStart != 0 {
         Client.SetTimeframe(timeStart, timeEnd)
     }
-    Client.GetWallet()
+    Client.GetWallet(isLive)
     LastBuyPrice = binance.LastBuyPrice
     SymbolWorth = binance.SymbolWorth
     err := Client.GetCandles()
@@ -68,6 +79,7 @@ func GetData() {
 
 func SetData(candles map[string][]binance.Candle) {
     Candles = candles
+    Response = nil
 }
 
 func Calculate() {
@@ -88,15 +100,18 @@ func Calculate() {
     data1DLen := len(Candles["1d"])
     dataLen := len(Candles[Client.Interval])
     i := data1DLen - 6
-    j := dataLen - 501
+    iDayBefore := 0;
+    j := dataLen - 500
     for j < dataLen && i < data1DLen {
         for i < (data1DLen - 1) && Candles[Client.Interval][j].CloseTime > Candles["1d"][i].CloseTime {
             i++
         }
+
+        iDayBefore = i - 1
         
-        PivotPoint = (Candles["1d"][i].High + Candles["1d"][i].Low + Candles["1d"][i].Close) / 3
-        S1 = 2*PivotPoint - Candles["1d"][i].High
-        R1 = 2*PivotPoint - Candles["1d"][i].Low
+        PivotPoint = (Candles["1d"][iDayBefore].High + Candles["1d"][iDayBefore].Low + Candles["1d"][iDayBefore].Close) / 3
+        S1 = 2*PivotPoint - Candles["1d"][iDayBefore].High
+        R1 = 2*PivotPoint - Candles["1d"][iDayBefore].Low
 
         if Candles[Client.Interval][j].Close > R1 {
             PivotSignal[j] = append(PivotSignal[j], 1, Candles[Client.Interval][j].OpenTime)
@@ -355,11 +370,27 @@ func GetSignal() (signals []string) {
         signals = append(signals, "WAIT")
     }
 
+    response := " [ " + signals[len(signals) - 1] + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1][0])
+    Response = append(Response, response)
+
+    return
+}
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
+}
+
+func int2str(input int64) (output string) {
+    output = strconv.FormatInt(input, 10)
+
     return
 }
 
 func Trade(signal string) {
-    Client.Trade(signal)
+    fmt.Println(GetBaseQuantity(), GetQuoteQuantity())
+    Client.Trade(math.Abs(GetBaseQuantity()), GetQuoteQuantity(), signal)
     // pass additional vars:
     // AMOUNT IF MARGIN SELL/BUY
 }

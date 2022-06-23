@@ -5,22 +5,28 @@ import (
     "fmt"
     "time"
     "flag"
-    // "os"
 )
 
 func main() {
     isSimulation := flag.Bool("sim", false, "execute a silumation")
     startTime := flag.String("start", "", "start time for simulation")
     endTime := flag.String("end", "", "end time for simulation")
+    signal := flag.String("signal", "", "manual order trigger")
 
     flag.Parse()
 
     timeParsedStart, _ := timeParseAny(*startTime)
     timeParsedEnd, _ := timeParseAny(*endTime)
 
-    fmt.Println("sim:", *isSimulation)
-    fmt.Println("start:", timeParsedStart)
-    fmt.Println("end:", timeParsedEnd)
+    if (*isSimulation == true) {
+        fmt.Println("sim:", *isSimulation)
+        if (*startTime != "" || *endTime != "") {
+            fmt.Println("start:", timeParsedStart)
+            fmt.Println("end:", timeParsedEnd)
+        }
+    } else {
+        fmt.Println("* * * LIVE TRADING * * *")
+    }
 
     simulate := *isSimulation
 
@@ -28,11 +34,23 @@ func main() {
 
     if simulate == true {
         trading.Simulation(timeParsedStart, timeParsedEnd)
+    } else if *signal != "" {
+        signalString := *signal
+        trading.TriggerTrade(signalString)
+    } else {
+        for {
+            now := GetWallclockNow()
+            wait := 55 - now
+            if (wait < 0) {
+                wait = wait + 60
+            }
+            time.Sleep(time.Duration(wait) * time.Second)
+            fmt.Println("(Pre) Second executed: ", GetWallclockNow())
+            trading.Trade()
+            fmt.Println("(Post) Second executed: ", GetWallclockNow())
+            time.Sleep(time.Second)
+        }
     }
-    // for {
-    //     fmt.Println(strategy.GetSignal())
-    //     time.Sleep(60 * time.Second)
-    // }
 }
 
 func timeParseAny(dateTime string) (result time.Time, err error) {
@@ -45,4 +63,9 @@ func timeParseAny(dateTime string) (result time.Time, err error) {
     }
 
     return
+}
+
+func GetWallclockNow() int {
+    var t time.Time = time.Now()
+    return int(t.Second())
 }

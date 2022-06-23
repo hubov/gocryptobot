@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"strings"
 	"math"
+	"os"
+	"log"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type (
@@ -33,7 +37,7 @@ func Simulation(startTime, endTime time.Time) {
 		endTimeUnix := endTime.UnixMilli()
 
 		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
-		strategy.GetData()
+		strategy.GetData(false)
 		candles := strategy.Candles
 		intervalsCount := int(strategy.IntervalsCount)
 
@@ -51,7 +55,7 @@ func Simulation(startTime, endTime time.Time) {
 		for i < intervalsCount {
 			strategy.Update[strategy.Client.Interval] = candles[strategy.Client.Interval][0:i]
 			for key, value := range intervalIterators {
-				for candles[key][value].CloseTime < candles[strategy.Client.Interval][i].CloseTime {
+				for candles[key][value].OpenTime < candles[strategy.Client.Interval][i].OpenTime {
 					value++
 					intervalIterators[key] = value
 				}
@@ -60,9 +64,9 @@ func Simulation(startTime, endTime time.Time) {
 
 			strategy.SetData(strategy.Update)
 			signals := strategy.GetSignal()
-			for _, signal := range signals {
+			for k, signal := range signals {
 				if (signal != "WAIT") {
-					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
+					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
 					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime)
 				}
 			}
@@ -152,13 +156,53 @@ func SimOrder(signal string, price float64, tradeTime int64) {
 }
 
 func Trade() {
-	// signals := strategy.GetSignal()
-	// for _, signal := range signals {
-	// 	if (signal != "WAIT") {
-	// 		fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
-	// 		strategy.Trade(signal)
-	// 	} else {
-	// 		fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), signal, candles[strategy.Client.Interval][i].Open, "|", strategy.Rsi[strategy.RsiLen-2], strategy.Rsi[strategy.RsiLen-1], strategy.R1, strategy.Sma[len(strategy.Sma)-1], strategy.Data[strategy.DataLen-1])
-	// 	}
-	// }
+	var tradeTime bool
+
+	strategy.GetData(true)
+	signals := strategy.GetSignal()
+	for _, signal := range signals {
+		if (time.Now().Minute() == 14 || time.Now().Minute() == 29 || time.Now().Minute() == 44 || time.Now().Minute() == 59) {
+			signal = "* " + signal + " *"
+			tradeTime = true
+		} else {
+			tradeTime = false
+		}
+		
+		fmt.Println(time.Now().UTC(), strategy.Response[len(strategy.Response) - 1])
+
+		file, _ := openLogFile("./log/live-trading.log")
+		infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
+		infoLog.Println(strategy.Response[len(strategy.Response) - 1])
+
+		command := strings.Split(signal, " ")
+
+		if command[0] == "Exit" {
+			strategy.Trade(signal)
+		} else if (tradeTime == true) {
+			strategy.Trade(signal)
+		}
+	}
+}
+
+func TriggerTrade(signal string) {
+	strategy.GetData(true)
+	strategy.GetSignal()
+
+	command := strings.Split(signal, " ")
+
+	titler :=  cases.Title(language.English)
+	upper :=  cases.Upper(language.English)
+	command[0] = titler.String(command[0])
+	command[1] = upper.String(command[1])
+
+	fmt.Println("TRADE!!!")
+	strategy.Trade(command[0] + " " + command[1])
+}
+
+func openLogFile(path string) (logFile *os.File, err error) {
+	logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return
 }
