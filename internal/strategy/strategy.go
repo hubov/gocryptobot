@@ -370,8 +370,10 @@ func GetSignal(isLive bool) (signals []string) {
         signals = append(signals, "WAIT")
     }
 
-    response := " [ " + signals[len(signals) - 1] + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1][0])
-    Response = append(Response, response)
+    for _, signal := range signals {
+        response := " [ " + signal + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1][0])
+        Response = append(Response, response)
+    }
 
     return
 }
