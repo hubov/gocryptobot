@@ -322,9 +322,6 @@ func (c *Client) SetTimeframeOffset(start, end int64, offset int) {
     c.TimeEnd = strconv.FormatInt(end, 10)
 
     c.countIntervals()
-    // if c.IntervalsCount != 0 && offset > 0 c.IntervalsCount < 500 {
-    //     panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
-    // }
 
     return
 }

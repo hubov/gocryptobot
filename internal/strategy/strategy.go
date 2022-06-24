@@ -73,7 +73,7 @@ func GetData(isLive bool) {
     IntervalsCount = Client.IntervalsCount
 
     client1D := binance.ApiClient(defaultTimeout)
-    client1D.SetTimeframeOffset(timeStart, timeEnd, 30)
+    client1D.SetTimeframeOffset(timeStart, timeEnd, 1000)
     err = client1D.GetCandlesParams(client1D.Symbol, "1d")
     if err != nil {
         log.Fatal(err)

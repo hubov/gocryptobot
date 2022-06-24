@@ -194,7 +194,7 @@ func getFileLine(fileHandle *os.File, reversed bool) string {
 		    } else {
 		    	line = fmt.Sprintf("%s%s", line, string(char))
 		    }
-		    if cursor <= -filesize || cursor >= +filesize {
+		    if cursor <= -filesize || cursor >= filesize {
 		        break
 		    }
 		}
