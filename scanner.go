@@ -166,17 +166,55 @@ scriptStart := time.Now()
 		    		trading.Simulation(time.UnixMilli(times[0]), time.UnixMilli(times[1]), pair.Base, pair.Quote, interval, true, records)
 	    		}
 
-	    		tradesFile, err = os.OpenFile("scans/trades/" + pair.Symbol + ".csv", os.O_RDONLY, 0755)
+	    		tradesFile, err := os.OpenFile("scans/trades/" + pair.Symbol + ".csv", os.O_RDONLY, 0755)
 				if err != nil {
 	    			log.Fatal(err)
 	    		}
 	    		tradesReader := csv.NewReader(tradesFile)
 
+	    		var (
+	    			wins, losses []int64
+	    			lastPrice, currentPrice float64
+	    			lastDate int64
+	    		)
+
 	    		for {
 	    			trade, err := tradesReader.Read()
+	    			if err == io.EOF {
+						break
+					}
+		    		if err != nil {
+		    			log.Fatal(err)
+		    		}
 
-	    			
+		    		fmt.Println(trade)
+
+		    		currentPrice = str2float(trade[4])
+		    		if trade[1] == "Order" {
+		    			lastPrice = currentPrice
+		    			lastDate = str2int(trade[0])
+		    		} else if lastPrice != -1  && lastDate > 0 {
+		    			if trade[2] == "SHORT" {
+		    				if lastPrice > currentPrice {
+		    					wins = append(wins, lastDate)
+		    				} else {
+		    					losses = append(losses, lastDate)
+		    				}
+		    			} else {
+		    				if lastPrice < currentPrice {
+		    					wins = append(wins, lastDate)
+		    				} else {
+		    					losses = append(losses, lastDate)
+		    				}
+		    			}
+		    			lastPrice = -1
+		    		}
 	    		}
+
+	    		fmt.Println("wins", wins)
+	    		fmt.Println(len(wins))
+	    		fmt.Println("losses", losses)
+	    		fmt.Println(len(losses))
 
 os.Exit(11)
 	   //  		candlesFile.Seek(0, io.SeekStart)
