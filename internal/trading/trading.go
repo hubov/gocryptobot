@@ -82,9 +82,6 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string, trad
 	SimWallet.QuoteQuantity = 1000
 	symbol = base + quote
 
-	fmt.Println(data[0])
-	os.Exit(1)
-
 	strategy.SetConfig(base, quote, interval)
 
 	if !startTime.IsZero() && !endTime.IsZero() {
@@ -92,7 +89,7 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string, trad
 		endTimeUnix := endTime.UnixMilli()
 
 		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
-		strategy.GetData(false)
+		strategy.GetData(false, data)
 		candles := strategy.Candles
 		intervalsCount := int(strategy.IntervalsCount)
 
@@ -218,7 +215,7 @@ func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool) {
 func Trade() {
 	var tradeTime bool
 
-	strategy.GetData(true)
+	strategy.GetData(true, nil)
 	signals := strategy.GetSignal(true)
 	for _, signal := range signals {
 		if (time.Now().Minute() == 14 || time.Now().Minute() == 29 || time.Now().Minute() == 44 || time.Now().Minute() == 59) {
@@ -273,7 +270,7 @@ func TradeLog(tradeTime int64, order, orderType string, amount, price float64) {
 }
 
 func TriggerTrade(signal string) {
-	strategy.GetData(true)
+	strategy.GetData(true, nil)
 	strategy.GetSignal(true)
 
 	command := strings.Split(signal, " ")

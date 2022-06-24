@@ -195,6 +195,17 @@ func (c *Client) ClearData() {
     c.Candles = nil
 }
 
+func (c *Client) CreateCandles(data []map[string]string) {
+    if len(data) > 0 {
+        for i, candle := range data {
+            c.Candles = append(c.Candles, Candle{})
+            c.Candles[i].Set(str2int(candle["OpenTime"]), str2float(candle["Open"]), str2float(candle["High"]), str2float(candle["Low"]), str2float(candle["Close"]), str2float(candle["Volume"]), str2int(candle["CloseTime"]), str2float(candle["QuoteAssetVolume"]), str2int(candle["TradesNumber"]), str2float(candle["TakerBuyBaseAssetVolume"]), str2float(candle["TakerBuyQuoteAssetVolume"]), str2float(candle["Ignore"]))
+        }
+    } else {
+        panic("Empty data set!")
+    }
+}
+
 func (c *Candle) Set(openTime int64, open, high, low, close, volume float64, closeTime int64, quoteAssetVolume float64, tradesNumber int64, takerBuyBaseAssetVolume, takerBuyQuoteAssetVolume, ignore float64) {
     c.OpenTime = openTime
     c.Open = open
@@ -308,7 +319,7 @@ func (c *Client) MarginBalance() (resp []MarginAsset, err error) {
     return
 }
 
-func StrToFloat(input string) (res float64) {
+func str2float(input string) (res float64) {
     res, err := strconv.ParseFloat(input, 64);
     if err != nil {
         panic(err)
@@ -358,8 +369,12 @@ func (c *Client) countIntervals() {
     c.IntervalsCount = timeDifference.Milliseconds() / int64(intervals[c.Interval])
 }
 
-func (c *Client) GetCandles() (err error) {
-    err = c.GetCandlesParams(c.Symbol, c.Interval)
+func (c *Client) GetCandles(data []map[string]string) (err error) {
+    if len(data) >  0 {
+        c.CreateCandles(data)
+    } else {
+        err = c.GetCandlesParams(c.Symbol, c.Interval)
+    }
 
     return
 }
@@ -409,7 +424,7 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         candlesLength := len(c.Candles)
         for i, candle := range CandlesArray {
             c.Candles = append(c.Candles, Candle{})
-            c.Candles[candlesLength + i].Set(int64(candle[0].(float64)), StrToFloat(candle[1].(string)), StrToFloat(candle[2].(string)), StrToFloat(candle[3].(string)), StrToFloat(candle[4].(string)), StrToFloat(candle[5].(string)), int64(candle[6].(float64)), StrToFloat(candle[7].(string)), int64(candle[8].(float64)), StrToFloat(candle[9].(string)), StrToFloat(candle[10].(string)), StrToFloat(candle[11].(string)))
+            c.Candles[candlesLength + i].Set(int64(candle[0].(float64)), str2float(candle[1].(string)), str2float(candle[2].(string)), str2float(candle[3].(string)), str2float(candle[4].(string)), str2float(candle[5].(string)), int64(candle[6].(float64)), str2float(candle[7].(string)), int64(candle[8].(float64)), str2float(candle[9].(string)), str2float(candle[10].(string)), str2float(candle[11].(string)))
         }
 
         if len(CandlesArray) > 0 {
@@ -664,6 +679,12 @@ func SetConfig(base, quote, interval string) {
     if (interval != "") {
         configuration.Trade.Interval = interval
     }
+}
+
+func str2int(input string) (output int64) {
+    output, _ = strconv.ParseInt(input, 10, 64)
+
+    return
 }
 
 func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {

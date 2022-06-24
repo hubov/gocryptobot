@@ -55,16 +55,20 @@ func SetTimeframe(start, end int64) {
     timeEnd = end
 }
 
-func GetData(isLive bool) {
+func GetData(isLive bool, data []map[string]string) {
     defaultTimeout := time.Second * 10
     Client = binance.ApiClient(defaultTimeout)
     if timeStart != 0 {
-        Client.SetTimeframe(timeStart, timeEnd)
+        if (len(data) == 0) {
+            Client.SetTimeframe(timeStart, timeEnd)
+        } else {
+            Client.SetTimeframeOffset(timeStart, timeEnd, 0)
+        }
     }
     Client.GetWallet(isLive)
     LastBuyPrice = binance.LastBuyPrice
     SymbolWorth = binance.SymbolWorth
-    err := Client.GetCandles()
+    err := Client.GetCandles(data)
     if err != nil {
         log.Fatal(err)
     }
