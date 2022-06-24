@@ -1,11 +1,12 @@
 package trading
 
 import (
-	// "encoding/csv"
+	"encoding/csv"
 	"github.com/hubov/gocryptobot/internal/strategy"
 	"time"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"math"
 	"os"
@@ -32,6 +33,18 @@ var  (
 	SimWallet Wallet
 	symbol string
 )
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
+}
+
+func int2str(input int64) (output string) {
+    output = strconv.FormatInt(input, 10)
+
+    return
+}
 
 func lastFileLine(fileHandle *os.File) string {
 	line := ""
@@ -195,7 +208,7 @@ func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool) {
 	SimTradingHistory = append(SimTradingHistory, row)
 
 	if tradeLog == true {
-		TradeLog(command[0], command[1], quantity, price)
+		TradeLog(tradeTime, command[0], command[1], quantity, price)
 	}
 }
 
@@ -228,7 +241,9 @@ func Trade() {
 	}
 }
 
-func TradeLog(order, orderType string, amount, price float64) {
+func TradeLog(tradeTime int64, order, orderType string, amount, price float64) {
+	var lastUpdateDate int64 = 0
+
 	tradesFile, err := os.OpenFile("scans/trades/" + symbol + ".csv", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
 	if err != nil {
 		log.Fatal(err)
@@ -236,6 +251,22 @@ func TradeLog(order, orderType string, amount, price float64) {
 
 	line := lastFileLine(tradesFile)
 	fmt.Println("tradelog:", line)
+	if (line != "") {
+		lineFields := strings.Split(line, ",")
+		lastUpdateDate, _ = strconv.ParseInt(lineFields[0], 10, 64)
+	} else {
+		lastUpdateDate = 0
+	}
+
+	if lastUpdateDate < tradeTime {
+		tradesWriter := csv.NewWriter(tradesFile)
+		row := []string{int2str(tradeTime), order, orderType, float2str(amount), float2str(price)}
+		if err := tradesWriter.Write(row); err != nil {
+			log.Fatalln("error writing record to file", err)
+		}
+		tradesWriter.Flush()
+	}
+	tradesFile.Close()
 }
 
 func TriggerTrade(signal string) {
