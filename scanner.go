@@ -101,10 +101,13 @@ scriptStart := time.Now()
 	    				fmt.Println(candlesWriter.Error())
 	    			}
 	    		}
-	    		var lines []string = nil
-	    		var times []int64 = nil
+	    		var (
+	    			lines []string = nil
+	    			times []int64 = nil
+	    		)
 	    		lines = append(lines, getFileLine(candlesFile, false))
 	    		lines = append(lines, getFileLine(candlesFile, true))
+	    		candlesFile.Close()
 
 	    		fmt.Println(lines)
 
@@ -118,11 +121,62 @@ scriptStart := time.Now()
 	    			panic("Something  went wrong.")
 	    		}
 
-// os.Exit(11)
-				
-	    		trading.Simulation(time.UnixMilli(times[0]), time.UnixMilli(times[1]), pair.Base, pair.Quote, interval, true)
+				candlesFile, err = os.OpenFile("scans/candles/" + pair.Symbol + ".csv", os.O_RDONLY, 0755)
+				if err != nil {
+	    			log.Fatal(err)
+	    		}
+	    		candlesReader := csv.NewReader(candlesFile)
+	    		var (
+		    		record []string
+		    		records []map[string]string
+		    	)
+	    		for {
+	    			record, err = candlesReader.Read()
 
+	    			if err == io.EOF {
+						break
+					}
+
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					row := make(map[string]string)
+
+	    			// records = append(records, binance.Candle{
+	    			// 	OpenTime: str2int(record[0]),
+	    			// 	Open: str2float(record[2]),
+	    			// 	High: str2float(record[3]),
+	    			// 	Low: str2float(record[4]), 
+	    			// 	Close: str2float(record[5]), 
+	    			// 	Volume: str2float(record[6]), 
+	    			// 	CloseTime: str2int(record[1]),
+	    			// 	QuoteAssetVolume: str2float(record[7]), 
+	    			// 	TradesNumber: str2int(record[8]),
+	    			// 	TakerBuyBaseAssetVolume: str2float(record[9]),
+	    			// 	TakerBuyQuoteAssetVolume: str2float(record[10]),
+	    			// 	Ignore: str2float(record[11]),
+	    			// })
+	    			row["OpenTime"] = record[0]
+	    			row["Open"] = record[2]
+	    			row["High"] = record[3]
+	    			row["Low"] = record[4]
+	    			row["Close"] = record[5]
+	    			row["Volume"] = record[6]
+	    			row["CloseTime"] = record[1]
+	    			row["QuoteAssetVolume"] = record[7]
+	    			row["TradesNumber"] = record[8]
+	    			row["TakerBuyBaseAssetVolume"] = record[9]
+	    			row["TakerBuyQuoteAssetVolume"] = record[10]
+	    			row["Ignore"] = record[11]
+
+	    			records = append(records, row)
+	    		}
 	    		candlesFile.Close()
+	    		fmt.Println(len(records))
+
+	    		trading.Simulation(time.UnixMilli(times[0]), time.UnixMilli(times[1]), pair.Base, pair.Quote, interval, true, records)
+	    		
 os.Exit(11)
 	   //  		candlesFile.Seek(0, io.SeekStart)
 	   //  		candlesReader := csv.NewReader(candlesFile)
@@ -159,6 +213,12 @@ func fileExists(filepath string) bool {
         return false
     }
     return !info.IsDir()
+}
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
 }
 
 func getFileLine(fileHandle *os.File, reversed bool) string {
@@ -203,14 +263,20 @@ func getFileLine(fileHandle *os.File, reversed bool) string {
     return line
 }
 
-func float2str(input float64) (output string) {
-    output = strconv.FormatFloat(input, 'f', -1, 64)
-
-    return
-}
-
 func int2str(input int64) (output string) {
     output = strconv.FormatInt(input, 10)
 
     return
+}
+
+func str2float(input string) (output float64) {
+	output, _ = strconv.ParseFloat(input, 64)
+
+	return
+}
+
+func str2int(input string) (output int64) {
+	output, _ = strconv.ParseInt(input, 10, 64)
+
+	return
 }

@@ -77,10 +77,13 @@ func SetSymbol(tradingSymbol string) {
 	symbol = tradingSymbol
 }
 
-func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool) {
+func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool, data []map[string]string) {
 	SimWallet.BaseQuantity = 0
 	SimWallet.QuoteQuantity = 1000
 	symbol = base + quote
+
+	fmt.Println(data[0])
+	os.Exit(1)
 
 	strategy.SetConfig(base, quote, interval)
 
