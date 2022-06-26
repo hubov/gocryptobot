@@ -19,6 +19,7 @@ import (
 
 type (
     Client struct {
+        Account string
         HttpClient *http.Client
         Host string
         Timeout time.Duration
@@ -31,6 +32,7 @@ type (
     }
     Configuration struct {
         Host string
+        Account string `json:"account"`
         ApiKey string `json:"api_key"`
         ApiSecret string `json:"api_secret"`
         Name string
@@ -38,6 +40,13 @@ type (
     }
     ExchangeInfo struct {
         Symbols []Symbol `json:"symbols"`
+    }
+    IsolatedMarginAccount struct {
+        Assets []IsolatedWallet
+    }
+    IsolatedWallet struct {
+         BaseAsset MarginAsset `json:"baseAsset"`
+         QuoteAsset MarginAsset `json:"quoteAsset"`
     }
     Symbol struct {
         Symbol string `json:"symbol"`
@@ -184,6 +193,7 @@ func ApiClient(timeout time.Duration) *Client {
         Timeout: timeout,
     }
     return &Client{
+        Account: configuration.Account,
         HttpClient: client,
         Host: configuration.Host,
         Symbol: configuration.Trade.BaseSymbol + configuration.Trade.QuoteSymbol,
@@ -422,6 +432,16 @@ func (c *Client) MarginAccount() (resp MarginAccount, err error) {
     return
 }
 
+func (c *Client) IsolatedAccount() (resp IsolatedMarginAccount, err error) {
+    params := make(map[string]string)
+    params["symbols"] = c.Symbol
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/isolated/account", params, true)
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+    return
+}
+
 func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
     body, err := c.queryAPI(http.MethodGet, "/api/v3/exchangeInfo?symbol=" + c.Symbol, nil, false)
     if err = json.Unmarshal(body, &resp); err != nil {
@@ -452,9 +472,19 @@ func (c *Client) GetWallet(isLive bool) {
     wg := sync.WaitGroup{}
     wg.Add(1)
     go func() {
-        wallet, err = c.MarginAccount()
-        if err != nil {
-            panic(err)
+        if configuration.Account == "margin" {
+            wallet, err = c.MarginAccount()
+            if err != nil {
+                panic(err)
+            }
+        } else if configuration.Account == "isolated" {
+            isolatedWallet, err := c.IsolatedAccount()
+            if err != nil {
+                panic(err)
+            }
+            // isolatedWallet[0].IsolatedWallet
+            wallet.UserAssets = append(wallet.UserAssets, isolatedWallet.Assets[0].BaseAsset)
+            wallet.UserAssets = append(wallet.UserAssets, isolatedWallet.Assets[0].QuoteAsset)
         }
         wg.Done()
     }()
@@ -578,6 +608,10 @@ func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect s
     params["sideEffectType"] = sideEffect
     params["type"] = "MARKET"
     params["newOrderRespType"] = "FULL"
+    fmt.Println(quantity, quoteOrderQty)
+    if configuration.Account == "isolated" {
+        params["isIsolated"] = "true"
+    }
     if quantity != 0 {
         params["quantity"] = strconv.FormatFloat(quantity, 'f', -1, 64)
     } else {
