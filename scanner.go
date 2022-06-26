@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"github.com/cinar/indicator"
 	"github.com/hubov/gocryptobot/internal/binance"
 	"github.com/hubov/gocryptobot/internal/trading"
 	"io"
@@ -15,13 +16,31 @@ import (
 	"time"
 )
 
+var (
+	intervalMilli int64 = 900000
+	apiCallsPerMinute = 1100 // API calls limit per minute
+	dayMilli int64 = 86400000
+	candles = make(map[int64][]string)
+	analysisResult = make(map[string]float64)
+)
+
+analysisResult["RSI"] = 0 // RSI > 95 or < 5
+analysisResult["PivotSignalCandles"] = 0 // candles since last PivotSignal change
+analysisResult["PivotCrossings"] = 0 // count of Pivot lines crossings
+analysisResult["PriceStDev"] = 0 // price standard deviation
+analysisResult["PriceAvgStDev"] = 0 // price average standard deviation
+analysisResult["VolumeAvg"] = 0 // volume average
+analysisResult["VolumeAvgWei"] = 0 // volume wighted average
+analysisResult["TakerBaseVolAvg"] = 0 // taker base volume average
+analysisResult["TakerBaseVolAvgWei"] = 0 // taker base weighted volume average
+analysisResult["TakerQuoteVolAvg"] = 0 // taker quote volume average
+analysisResult["TakerQuoteVolAvgWei"] = 0 // taker quote weighted volume average
+
 func main() {
 	base := flag.String("base", "", "filter by base currency")
 	quote := flag.String("quote", "", "filter by quote currency")
 	update := flag.Bool("update", false, "update candles?")
 	interval := "15m"
-	var intervalMilli int64 = 900000
-	var apiCallsPerMinute = 1100 // API calls limit per minute
 
 	flag.Parse()
 
@@ -121,7 +140,7 @@ scriptStart := time.Now()
 		    			panic("Something  went wrong.")
 		    		}
 
-					candlesFile, err = os.OpenFile("scans/candles/" + pair.Symbol + ".csv", os.O_RDONLY, 0755)
+					candlesFile, err = os.OpenFile("scans/candles/" + pair.Symbol + ".csv", os.O_RDONLY, 0644)
 					if err != nil {
 		    			log.Fatal(err)
 		    		}
@@ -132,11 +151,9 @@ scriptStart := time.Now()
 			    	)
 		    		for {
 		    			record, err = candlesReader.Read()
-
 		    			if err == io.EOF {
 							break
 						}
-
 						if err != nil {
 							log.Fatal(err)
 						}
@@ -166,7 +183,7 @@ scriptStart := time.Now()
 		    		trading.Simulation(time.UnixMilli(times[0]), time.UnixMilli(times[1]), pair.Base, pair.Quote, interval, true, records)
 	    		}
 
-	    		tradesFile, err := os.OpenFile("scans/trades/" + pair.Symbol + ".csv", os.O_RDONLY, 0755)
+	    		tradesFile, err := os.OpenFile("scans/trades/" + pair.Symbol + ".csv", os.O_RDONLY, 0644)
 				if err != nil {
 	    			log.Fatal(err)
 	    		}
@@ -210,30 +227,150 @@ scriptStart := time.Now()
 		    			lastPrice = -1
 		    		}
 	    		}
+	    		tradesFile.Close()
 
 	    		fmt.Println("wins", wins)
 	    		fmt.Println(len(wins))
 	    		fmt.Println("losses", losses)
 	    		fmt.Println(len(losses))
 
+	    		winsLen := len(wins)
+	    		lossesLen := len(losses)
+	    		if winsLen > 0 && lossesLen > 0 {
+	    			candlesFile, err = os.OpenFile("scans/candles/" + pair.Symbol + ".csv", os.O_RDONLY, 0644)
+					if err != nil {
+		    			log.Fatal(err)
+		    		}
+		    		candlesReader := csv.NewReader(candlesFile)
+		    		rows, err := candlesReader.ReadAll()
+		    		if err != nil {
+						log.Fatal(err)
+					}
+
+		    		rowsLeft := len(rows)
+		    		for {
+		    			rowsLeft--
+						// if str2int(rows[rowsLeft][0]) == wins[lastWin] {
+						// 	copyRows = int(dayMilli / intervalMilli)
+						// 	fmt.Println("last =", lastWin)
+						// 	lastWin--
+						// } else if str2int(rows[rowsLeft][0]) < wins[lastWin] {
+						// 	fmt.Println(wins[lastWin], str2int(rows[rowsLeft][0]))
+						// 	copyRows = int((wins[lastWin] - str2int(rows[rowsLeft][0])) / intervalMilli)
+						// 	fmt.Println("last <", lastWin, copyRows)
+						// 	lastWin--
+						// }
+
+						// for copyRows > 0 {
+						// 	candles[str2int(rows[rowsLeft][0])] = rows[rowsLeft]
+						// 	if rowsLeft > 0 {
+						// 		rowsLeft--
+						// 	} else {
+						// 		break
+						// 	}
+						// 	copyRows--
+						// }
+
+						candles[str2int(rows[rowsLeft][0])] = rows[rowsLeft]
+
+						if rowsLeft == 0 {
+							break
+						}
+		    		}
+fmt.Println(len(candles))
+
+					var (
+						rsi []float64
+					)
+
+					i := 0
+					for {
+						if i < winsLen {
+							dataSources := make(map[int][]float64)
+
+							timeTo := wins[i] - intervalMilli
+
+							//24h
+							timeFrom := timeTo - dayMilli
+							dataSources[0] = sliceData(candles, timeFrom, timeTo, "close")
+
+							//12h
+							timeFrom = timeTo - dayMilli / 2
+							dataSources[1] = sliceData(candles, timeFrom, timeTo, "close")
+
+							//8h
+							timeFrom = timeTo - dayMilli / 3
+							dataSources[2] = sliceData(candles, timeFrom, timeTo, "close")
+
+							//6h
+							timeFrom = timeTo - dayMilli / 4
+							dataSources[3] = sliceData(candles, timeFrom, timeTo, "close")
+
+							//4h
+							timeFrom = timeTo - dayMilli / 6
+							dataSources[4] = sliceData(candles, timeFrom, timeTo, "close")
+
+							//1h
+							timeFrom = timeTo - dayMilli / 24
+							dataSources[5] = sliceData(candles, timeFrom, timeTo, "close")
+
+							//30min
+							timeFrom = timeTo - dayMilli / 48
+							dataSources[6] = sliceData(candles, timeFrom, timeTo, "close")
+
+							fmt.Println(dataSources)
+// os.Exit(1)
+
+							for j := 0; j < 7; j++ {
+								// RSI
+								_, rsi = indicator.RsiPeriod(2, dataSources[j])
+								k := len(rsi)
+								for k > 0 {
+									k--
+
+									if rsi[k] > 95 {
+										analysisResult["RSI > 95"] += 1
+									}
+								}
+
+								fmt.Println(rsi)
+os.Exit(1)
+
+
+
+							}
+
+
+						} else {
+							break
+						}
+
+						i++
+					}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		    		// for _, candle := range candles {
+		    		// 	fmt.Println(candle)
+		    		// }
+		    	}
+
+
 os.Exit(11)
-	   //  		candlesFile.Seek(0, io.SeekStart)
-	   //  		candlesReader := csv.NewReader(candlesFile)
-	   //  		for {
-	   //  			record, err := candlesReader.Read()
-	   //  			if err == io.EOF {
-	   //  				break
-	   //  			}
-				// 	if err != nil {
-				// 		log.Fatal(err)
-				// 	}
-				
-				// 	for value := range record {
-				// 		fmt.Printf("%s\n", record[value])
-				// 	}
-				// }
 	        	i++
-	   //      	os.Exit(1)
 	    	}
 	    } else {
 	    	time.Sleep(time.Until(apiCallsUpdate.Add(61 * time.Second)))
@@ -304,6 +441,44 @@ func getFileLine(fileHandle *os.File, reversed bool) string {
 
 func int2str(input int64) (output string) {
     output = strconv.FormatInt(input, 10)
+
+    return
+}
+
+func sliceData(candles map[int64][]string, timeFrom, timeTo int64, periodType string) (result []float64) {
+	timeFrom -= 500 * intervalMilli
+
+	fmt.Println(timeFrom, timeTo)
+
+	var property string
+    i := timeFrom
+    for i < timeTo {
+        switch (periodType) {
+        case "close": 
+            property = candles[i][5]
+        case "open":
+            property = candles[i][2]
+        case "low":
+            property = candles[i][4]
+        case "high": 
+            property = candles[i][3]
+        case "volume":
+        	property = candles[i][6]
+    	case "quoteassetvolume":
+    		property = candles[i][7]
+    	case "tradesnumber":
+    		property = candles[i][8]
+    	case "takerbuybaseassetvolume":
+    		property = candles[i][9]
+    	case "takerbuyquoteassetvolume":
+    		property = candles[i][10]
+    	case "ignore":
+    		property = candles[i][11]
+    	}
+
+        result = append(result, str2float(property))
+        i += intervalMilli
+    }
 
     return
 }
