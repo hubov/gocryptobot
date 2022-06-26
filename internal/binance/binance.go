@@ -457,6 +457,7 @@ func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
     params["amount"] = float2str(amount)
     if (configuration.Account == "isolated") {
         params["isIsolated"] = "true"
+        params["symbol"] = c.Symbol
     }
     body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/repay", params, true)
     if err = json.Unmarshal(body, &resp); err != nil {
