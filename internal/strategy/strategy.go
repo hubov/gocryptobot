@@ -31,7 +31,7 @@ var S3 float64
 var R3 float64
 var LastBuyPrice float64
 var SymbolWorth float64
-var PivotSignal = make(map[int][]int64)
+var PivotSignal []int64
 var DataExitLow []float64
 var DataExitLowLen int
 var DataExitHigh []float64
@@ -102,6 +102,7 @@ func Calculate() {
     i := data1DLen - 6
     iDayBefore := 0;
     j := dataLen - 500
+    PivotSignal = nil
     for j < dataLen && i < data1DLen {
         for i < (data1DLen - 1) && Candles[Client.Interval][j].CloseTime > Candles["1d"][i].CloseTime {
             i++
@@ -114,14 +115,14 @@ func Calculate() {
         R1 = 2*PivotPoint - Candles["1d"][iDayBefore].Low
 
         if Candles[Client.Interval][j].Close > R1 {
-            PivotSignal[j] = append(PivotSignal[j], 1, Candles[Client.Interval][j].OpenTime)
+            PivotSignal = append(PivotSignal, 1/*, Candles[Client.Interval][j].OpenTime*/)
         } else if Candles[Client.Interval][j].Close < S1 {
-            PivotSignal[j] = append(PivotSignal[j], -1, Candles[Client.Interval][j].OpenTime)
+            PivotSignal = append(PivotSignal, -1/*, Candles[Client.Interval][j].OpenTime*/)
         } else {
-            if PivotSignal[j - 1] != nil {
-                PivotSignal[j] = append(PivotSignal[j], PivotSignal[j - 1][0], Candles[Client.Interval][j].OpenTime)
+            if len(PivotSignal) > 0 {
+                PivotSignal = append(PivotSignal, PivotSignal[len(PivotSignal) - 1]/*, Candles[Client.Interval][j].OpenTime*/)
             } else {
-                PivotSignal[j] = append(PivotSignal[j], 0, Candles[Client.Interval][j].OpenTime)
+                PivotSignal = append(PivotSignal, 0/*, Candles[Client.Interval][j].OpenTime*/)
             }
         }
 
@@ -202,7 +203,7 @@ func SignalOrderLong() (result bool) {
         tests = append(tests, false)
     }
 
-    if PivotSignal[len(PivotSignal) - 1][0] == 1 {
+    if PivotSignal[len(PivotSignal) - 1] == 1 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -279,7 +280,7 @@ func SignalOrderShort() (result bool) {
         tests = append(tests, false)
     }
 
-    if PivotSignal[len(PivotSignal) - 1][0] == -1 {
+    if PivotSignal[len(PivotSignal) - 1] == -1 {
         tests = append(tests, true)
     } else {
         tests = append(tests, false)
@@ -371,7 +372,7 @@ func GetSignal(isLive bool) (signals []string) {
     }
 
     for _, signal := range signals {
-        response := " [ " + signal + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1][0])
+        response := " [ " + signal + " ] " + float2str(Candles[Client.Interval][len(Candles[Client.Interval]) - 1].Close) + " | " + float2str(Rsi[RsiLen-2]) + " " + float2str(Rsi[RsiLen-1]) + " " + float2str(R1) + " " + float2str(Sma[len(Sma)-1]) + " " + int2str(PivotSignal[len(PivotSignal)-1])
         Response = append(Response, response)
     }
 
