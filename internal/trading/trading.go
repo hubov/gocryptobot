@@ -162,7 +162,7 @@ func Trade() {
 	signals := strategy.GetSignal(true)
 	for _, signal := range signals {
 		if (time.Now().Minute() == 14 || time.Now().Minute() == 29 || time.Now().Minute() == 44 || time.Now().Minute() == 59) {
-			signal = "* " + signal + " *"
+			strategy.Response[len(strategy.Response) - 1] = "* " + strategy.Response[len(strategy.Response) - 1]
 			tradeTime = true
 		} else {
 			tradeTime = false
@@ -175,11 +175,19 @@ func Trade() {
 		infoLog.Println(strategy.Response[len(strategy.Response) - 1])
 
 		command := strings.Split(signal, " ")
-
-		if command[0] == "Exit" {
-			strategy.Trade(signal)
-		} else if (tradeTime == true) {
-			strategy.Trade(signal)
+		
+		if command[0] != "WAIT" {
+			if command[0] == "Exit" {
+				strategy.Trade(signal)
+			} else if tradeTime == true {
+				if len(command) == 2 {
+					strategy.Trade(signal)
+				} else {
+					file, _ := openLogFile("./log/errors.log")
+		            infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
+		            infoLog.Println("TRADE: command missing!")
+				}
+			}
 		}
 	}
 }
