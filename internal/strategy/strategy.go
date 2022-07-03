@@ -239,7 +239,7 @@ func SingalCloseLong() (result bool) {
 
 func SingalExitLong() (result bool) {
     var tests []bool
-    result = true
+    result = false
 
     if DataExitLow[DataExitLowLen-1] <= LongStop() {
         tests = append(tests, true)
@@ -256,8 +256,8 @@ func SingalExitLong() (result bool) {
     }
 
     for _, test := range tests {
-        if test == false {
-            result = false
+        if test == true {
+            result = true
         }
     }
 
