@@ -588,6 +588,9 @@ func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
 func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
     params := make(map[string]string)
     params["symbol"] = c.Symbol
+    if configuration.Account == "isolated" {
+        params["isIsolated"] = "true"
+    }
     body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
