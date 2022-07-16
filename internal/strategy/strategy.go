@@ -67,7 +67,9 @@ func GetData(isLive bool, data []map[string]string) {
     }
     Client.GetWallet(isLive)
     LastBuyPrice = binance.LastBuyPrice
-    SymbolWorth = binance.SymbolWorth
+    if isLive == true { 
+        SymbolWorth = binance.SymbolWorth
+    }
     err := Client.GetCandles(data)
     if err != nil {
         log.Fatal(err)
