@@ -77,7 +77,7 @@ func SetSymbol(tradingSymbol string) {
 	symbol = tradingSymbol
 }
 
-func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool, data []map[string]string) {
+func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool, data []map[string]string, nowFileName string) {
 	SimWallet.BaseQuantity = 0
 	SimWallet.QuoteQuantity = 1000
 	symbol = base + quote
@@ -114,11 +114,12 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string, trad
 			}
 
 			strategy.SetData(strategy.Update)
+			strategy.SymbolWorth = SimWallet.BaseQuantity
 			signals := strategy.GetSignal(false)
 			for k, signal := range signals {
 				if (signal != "WAIT") {
-					fmt.Println(time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
-					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime, tradeLog)
+					fmt.Println(".", time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
+					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime, tradeLog, nowFileName)
 				}
 			}
 			i++
@@ -130,7 +131,7 @@ func Simulation(startTime, endTime time.Time, base, quote, interval string, trad
 	}
 }
 
-func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool) {
+func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool, nowFileName string) {
 	command := strings.Split(signal, " ")
 	var quantity float64
 
@@ -208,7 +209,7 @@ func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool) {
 	SimTradingHistory = append(SimTradingHistory, row)
 
 	if tradeLog == true {
-		TradeLog(tradeTime, command[0], command[1], quantity, price)
+		TradeLog(tradeTime, command[0], command[1], quantity, price, nowFileName)
 	}
 }
 
@@ -241,10 +242,10 @@ func Trade() {
 	}
 }
 
-func TradeLog(tradeTime int64, order, orderType string, amount, price float64) {
+func TradeLog(tradeTime int64, order, orderType string, amount, price float64, nowFileName string) {
 	var lastUpdateDate int64 = 0
 
-	tradesFile, err := os.OpenFile("scans/trades/" + symbol + ".csv", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+	tradesFile, err := os.OpenFile("scans/trades/" + symbol + "-" + nowFileName + ".csv", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
