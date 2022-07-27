@@ -267,22 +267,32 @@ func (c *Client) GetCandles(data []map[string]string) (err error) {
     return
 }
 
-func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
+func (c *Client) GetCandlesApi(symbol, interval, startTime, endTime, limit string) (resp [][]interface{}, err error) {
     params := make(map[string]string)
-    var paramStart, paramEnd string
-    var candlesToGet int64
-    var CandlesArray [][]interface{}
+    params["limit"] = limit
+    params["symbol"] = symbol
+    params["interval"] = interval
+    if startTime != "-62135596800000" {
+        params["startTime"] = startTime
+    }
+    if endTime != "-62135596800000" {
+        params["endTime"] = endTime
+    }
 
-    if c.TimeStart != "-62135596800000" {
-        paramStart = c.TimeStart
-    } else {
-        paramStart = "-62135596800000"
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/klines", params, false)
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
     }
-    if c.TimeEnd != "-62135596800000" {
-        paramEnd = c.TimeEnd
-    } else {
-        paramEnd = "-62135596800000"
-    }
+
+    return
+}
+
+func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
+    var (
+        candlesToGet int64
+        CandlesArray [][]interface{}
+        limit, paramStart string
+    )
 
     if c.IntervalsCount != 0 {
         candlesToGet = c.IntervalsCount
@@ -290,24 +300,16 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
         candlesToGet = 500
     }
 
+    paramStart = c.TimeStart
+
     for candlesToGet > 0 {
         if candlesToGet >= 1000 {
-            params["limit"] = "1000"
+            limit = "1000"
         } else {
-            params["limit"] = strconv.FormatInt(candlesToGet, 10)
+            limit = strconv.FormatInt(candlesToGet, 10)
         }
-        params["symbol"] = symbol
-        params["interval"] = interval
-        if paramStart != "-62135596800000" {
-            params["startTime"] = paramStart
-        }
-        if paramEnd != "-62135596800000" {
-            params["endTime"] = paramEnd
-        }
-        body, err := c.queryAPI(http.MethodGet, "/api/v3/klines", params, false)
-        if err = json.Unmarshal(body, &CandlesArray); err != nil {
-            return err
-        }
+
+        CandlesArray, err = c.GetCandlesApi(symbol, interval, paramStart, c.TimeEnd, limit)
 
         candlesLength := len(c.Candles)
         for i, candle := range CandlesArray {
