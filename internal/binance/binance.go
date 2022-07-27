@@ -1,23 +1,37 @@
 package binance
 
 import (
-    "os"
-    "fmt"
-    "net/http"
-    "io/ioutil"
-    "encoding/json"
-    "time"
-    "strconv"
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
-    "sync"
-    "strings"
-    "math"
+    "encoding/json"
+    "fmt"
+    "io/ioutil"
     "log"
+    "math"
+    "net/http"
+    "os"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
 )
 
 type (
+    Candle struct {
+        OpenTime int64
+        Open float64
+        High float64
+        Low float64
+        Close float64
+        Volume float64
+        CloseTime int64
+        QuoteAssetVolume float64
+        TradesNumber int64
+        TakerBuyBaseAssetVolume float64
+        TakerBuyQuoteAssetVolume float64
+        Ignore float64
+    }
     Client struct {
         HttpClient *http.Client
         Host string
@@ -36,58 +50,12 @@ type (
         Name string
         Trade Trade
     }
+    ErrorApi struct {
+        Code int64 `json:"code"`
+        Msg string `json:"msg"`
+    }
     ExchangeInfo struct {
         Symbols []Symbol `json:"symbols"`
-    }
-    Symbol struct {
-        Symbol string `json:"symbol"`
-        BaseAssetPrecision int `json:"baseAssetPrecision"`
-        QuoteAssetPrecision int `json:"quoteAssetPrecision"`
-        Filters []interface{} `json:"filters"`
-    }
-    Trade struct {
-        BaseSymbol string `json:"base_symbol"`
-        QuoteSymbol string `json:"quote_symbol"`
-        Interval string
-    }
-    TradeHistory struct {
-        Commission float64 `json:"commission,string"`
-        CommissionAsset string `json:"commissionAsset"`
-        IsBestMatch bool `json:"isBestMatch"`
-        IsBuyer bool `json:"isBuyer"`
-        IsMaker bool `json:"isMaker"`
-        Price float64 `json:"price,string"`
-        Quantity float64 `json:"qty,string"`
-        Symbol string `json:"symbol"`
-        Time int64 `json:"time"`
-    }
-    TradeOrder struct {
-        Symbol string `json:"symbol"`
-        OrderId int64 `json:"orderId"`
-        ClientOrderId string `json:"clientOrderId"`
-        Time int64 `json:transactTime`
-        OrigQty float64 `json:"origQty,string"`
-        ExecutedQty float64 `json:"executedQty,string"`
-        Status string `json:"status"`
-        Type string `json:"type"`
-        Side string `json:"side"`
-        Fills []TradeFills
-    }
-    TradeFills struct {
-        Price float64 `json:"price,string"`
-        Quantity float64 `json:"qty,string"`
-        Commission float64 `json:"commission,string"`
-        CommissionAsset string `json:"commissionAsset"`
-    }
-    SpotAccount struct {
-        CanTrade bool `json:"canTrade"`
-        TakerCommission int64 `json:"takerCommission"`
-        Balances []SpotAsset
-    }
-    SpotAsset struct {
-        Asset string `json:"asset"`
-        Free float64 `json:"free,string"`
-        Locked float64 `json:"locked,string"`
     }
     MarginAccount struct {
         BorrowEnabled bool `json:"borrowEnabled"`
@@ -114,47 +82,81 @@ type (
         Quote string `json:"quote"`
         Symbol string `json:"symbol"`
     }
-    Candle struct {
-        OpenTime int64
-        Open float64
-        High float64
-        Low float64
-        Close float64
-        Volume float64
-        CloseTime int64
-        QuoteAssetVolume float64
-        TradesNumber int64
-        TakerBuyBaseAssetVolume float64
-        TakerBuyQuoteAssetVolume float64
-        Ignore float64
-    }
     PriceTicker struct {
         Symbol string `json:"symbol"`
         Price float64 `json:"price,string"`
+    }
+    SpotAccount struct {
+        CanTrade bool `json:"canTrade"`
+        TakerCommission int64 `json:"takerCommission"`
+        Balances []SpotAsset
+    }
+    SpotAsset struct {
+        Asset string `json:"asset"`
+        Free float64 `json:"free,string"`
+        Locked float64 `json:"locked,string"`
+    }
+    Symbol struct {
+        Symbol string `json:"symbol"`
+        BaseAssetPrecision int `json:"baseAssetPrecision"`
+        QuoteAssetPrecision int `json:"quoteAssetPrecision"`
+        Filters []interface{} `json:"filters"`
+    }
+    Trade struct {
+        BaseSymbol string `json:"base_symbol"`
+        QuoteSymbol string `json:"quote_symbol"`
+        Interval string
+    }
+    TradeFills struct {
+        Price float64 `json:"price,string"`
+        Quantity float64 `json:"qty,string"`
+        Commission float64 `json:"commission,string"`
+        CommissionAsset string `json:"commissionAsset"`
+    }
+    TradeHistory struct {
+        Commission float64 `json:"commission,string"`
+        CommissionAsset string `json:"commissionAsset"`
+        IsBestMatch bool `json:"isBestMatch"`
+        IsBuyer bool `json:"isBuyer"`
+        IsMaker bool `json:"isMaker"`
+        Price float64 `json:"price,string"`
+        Quantity float64 `json:"qty,string"`
+        Symbol string `json:"symbol"`
+        Time int64 `json:"time"`
+    }
+    TradeOrder struct {
+        Symbol string `json:"symbol"`
+        OrderId int64 `json:"orderId"`
+        ClientOrderId string `json:"clientOrderId"`
+        Time int64 `json:transactTime`
+        OrigQty float64 `json:"origQty,string"`
+        ExecutedQty float64 `json:"executedQty,string"`
+        Status string `json:"status"`
+        Type string `json:"type"`
+        Side string `json:"side"`
+        Fills []TradeFills
     }
     Wallet struct {
         BaseQuantity float64
         BaseBorrowedQuantity float64
         QuoteQuantity float64
     }
-    ErrorApi struct {
-        Code int64 `json:"code"`
-        Msg string `json:"msg"`
-    }
 )
 
-var configuration Configuration
-var candleStart = "-62135596800000"
-var candleEnd = "-62135596800000"
-var intervals = make(map[string]int)
-var Candles []Candle
-var BaseSymbol MarginAsset
-var QuoteSymbol MarginAsset
-var LastBuyPrice float64
-var SymbolWorth float64
-var TradingPairWallet Wallet
-var exchangeInfo ExchangeInfo
-var exchange = make(map[string]float64)
+var (
+    BaseSymbol MarginAsset
+    Candles []Candle
+    candleStart = "-62135596800000"
+    candleEnd = "-62135596800000"
+    configuration Configuration
+    exchangeInfo ExchangeInfo
+    exchange = make(map[string]float64)
+    intervals = make(map[string]int)
+    LastBuyPrice float64
+    QuoteSymbol MarginAsset
+    SymbolWorth float64
+    TradingPairWallet Wallet
+)
 
 func init() {
     SetConfig("", "", "")
@@ -195,6 +197,15 @@ func (c *Client) ClearData() {
     c.Candles = nil
 }
 
+func (c *Client) countIntervals() {
+    startInt, _ := strconv.Atoi(c.TimeStart)
+    endInt, _ := strconv.Atoi(c.TimeEnd)
+    start := time.UnixMilli(int64(startInt))
+    end := time.UnixMilli(int64(endInt))
+    timeDifference := end.Sub(start)
+    c.IntervalsCount = timeDifference.Milliseconds() / int64(intervals[c.Interval])
+}
+
 func (c *Client) CreateCandles(data []map[string]string) {
     if len(data) > 0 {
         for i, candle := range data {
@@ -204,21 +215,6 @@ func (c *Client) CreateCandles(data []map[string]string) {
     } else {
         panic("Empty data set!")
     }
-}
-
-func (c *Candle) Set(openTime int64, open, high, low, close, volume float64, closeTime int64, quoteAssetVolume float64, tradesNumber int64, takerBuyBaseAssetVolume, takerBuyQuoteAssetVolume, ignore float64) {
-    c.OpenTime = openTime
-    c.Open = open
-    c.High = high
-    c.Low = low
-    c.Close = close
-    c.Volume = volume
-    c.CloseTime = closeTime
-    c.QuoteAssetVolume = quoteAssetVolume
-    c.TradesNumber = tradesNumber
-    c.TakerBuyBaseAssetVolume = takerBuyBaseAssetVolume
-    c.TakerBuyQuoteAssetVolume = takerBuyQuoteAssetVolume
-    c.Ignore = ignore
 }
 
 func (c *Client) do(method, endpoint string, params map[string]string, auth bool) (*http.Response, error) {
@@ -252,105 +248,6 @@ func (c *Client) do(method, endpoint string, params map[string]string, auth bool
     return c.HttpClient.Do(req) 
 }
 
-func (c *Client) queryAPI(method, endpoint string, params map[string]string, auth bool) (body []byte, err error) {
-    refresh := 4
-    var res *http.Response
-    for refresh > 0 {
-        res, err = c.do(method, endpoint, params, auth)
-        if err != nil {
-            return
-        }
-        defer res.Body.Close()
-        body, err = ioutil.ReadAll(res.Body)
-        if err != nil {
-            return
-        }
-
-        var errorApi ErrorApi
-        if err = json.Unmarshal(body, &errorApi); err != nil {
-            return
-        }
-        if errorApi.Code != 0 {
-            file, _ := openLogFile("./log/errors.log")
-            infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
-            infoLog.Println(endpoint, string(body))
-            fmt.Println("API Error", errorApi.Code)
-            switch errorApi.Code {
-            case -1003: {
-                time.Sleep(5 * time.Minute)
-                os.Exit(-1003)
-            }
-            case -1015: {
-                time.Sleep(1 * time.Minute)
-                os.Exit(-1015)
-            }
-            default: {
-                time.Sleep(10 * time.Second)
-                refresh--
-            }
-            }
-        } else {
-            refresh = 0
-        }
-    }
-
-    return
-}
-
-func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
-    account, err := c.SpotAccount()
-    for _, asset := range account.Balances {
-        if asset.Free != 0 || asset.Locked != 0 {
-            resp = account.Balances
-        }
-    }
-
-    return
-}
-
-func (c *Client) MarginBalance() (resp []MarginAsset, err error) {
-    account, err := c.MarginAccount()
-    for _, asset := range account.UserAssets {
-        if asset.NetAsset != 0 {
-            resp = append(resp, asset)
-        }
-    }
-
-    return
-}
-
-func str2float(input string) (res float64) {
-    res, err := strconv.ParseFloat(input, 64);
-    if err != nil {
-        panic(err)
-    }
-    return
-}
-
-func (c *Client) SetTimeframeOffset(start, end int64, offset int) {
-    start = start - int64(offset * intervals[c.Interval])
-    c.TimeStart = strconv.FormatInt(start, 10)
-    c.TimeEnd = strconv.FormatInt(end, 10)
-
-    c.countIntervals()
-
-    return
-}
-
-func (c *Client) SetTimeframe(start, end int64) {
-    c.SetTimeframeOffset(start, end, 500)
-    // start = start - int64(500 * intervals[c.Interval])
-    // c.TimeStart = strconv.FormatInt(start, 10)
-    // c.TimeEnd = strconv.FormatInt(end, 10)
-
-    // c.countIntervals()
-    // if c.IntervalsCount != 0 && c.IntervalsCount < 500 {
-    //     panic("Count of intervals too short. Is: " + strconv.FormatInt(c.IntervalsCount, 10) + " Needs: 500")
-    // }
-
-    return
-}
-
 func (c *Client) GetAllMarginPairs() (availablePairs []MarginPair) {
     body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/allPairs", nil, true)
     if err = json.Unmarshal(body, &availablePairs); err != nil {
@@ -358,15 +255,6 @@ func (c *Client) GetAllMarginPairs() (availablePairs []MarginPair) {
     }
 
     return
-}
-
-func (c *Client) countIntervals() {
-    startInt, _ := strconv.Atoi(c.TimeStart)
-    endInt, _ := strconv.Atoi(c.TimeEnd)
-    start := time.UnixMilli(int64(startInt))
-    end := time.UnixMilli(int64(endInt))
-    timeDifference := end.Sub(start)
-    c.IntervalsCount = timeDifference.Milliseconds() / int64(intervals[c.Interval])
 }
 
 func (c *Client) GetCandles(data []map[string]string) (err error) {
@@ -438,23 +326,14 @@ func (c *Client) GetCandlesParams(symbol, interval string) (err error) {
     return
 }
 
-func (c *Client) returnCandles() (candles []Candle) {
-    return c.Candles
-}
-
-func (c *Client) SpotAccount() (resp SpotAccount, err error) {
-    body, err := c.queryAPI(http.MethodGet, "/api/v3/account", nil, true)
+func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
+    params := make(map[string]string)
+    params["symbol"] = c.Symbol
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
-    return
-}
 
-func (c *Client) MarginAccount() (resp MarginAccount, err error) {
-    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/account", nil, true)
-    if err = json.Unmarshal(body, &resp); err != nil {
-        return resp, err
-    }
     return
 }
 
@@ -467,11 +346,10 @@ func (c *Client) GetOrderPrecision() (resp ExchangeInfo, err error) {
     return
 }
 
-func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
+func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
     params := make(map[string]string)
-    params["asset"] = BaseSymbol.Asset
-    params["amount"] = float2str(amount)
-    body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/repay", params, true)
+    params["symbol"] = c.Symbol
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/ticker/price", params, false)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
@@ -480,10 +358,12 @@ func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
 }
 
 func (c *Client) GetWallet(isLive bool) {
-    var wallet MarginAccount
-    var trades []TradeHistory
-    var ticker PriceTicker
-    var err error
+    var (
+        wallet MarginAccount
+        trades []TradeHistory
+        ticker PriceTicker
+        err error
+    )
 
     wg := sync.WaitGroup{}
     wg.Add(1)
@@ -576,35 +456,23 @@ func (c *Client) GetWallet(isLive bool) {
     }
 }
 
-func (c *Client) GetPriceTicker() (resp PriceTicker, err error) {
-    params := make(map[string]string)
-    params["symbol"] = c.Symbol
-    body, err := c.queryAPI(http.MethodGet, "/api/v3/ticker/price", params, false)
+func (c *Client) MarginAccount() (resp MarginAccount, err error) {
+    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/account", nil, true)
     if err = json.Unmarshal(body, &resp); err != nil {
         return resp, err
     }
-
     return
 }
 
-func (c *Client) GetLastTrades() (resp []TradeHistory, err error) {
-    params := make(map[string]string)
-    params["symbol"] = c.Symbol
-    body, err := c.queryAPI(http.MethodGet, "/sapi/v1/margin/myTrades", params, true)
-    if err = json.Unmarshal(body, &resp); err != nil {
-        return resp, err
+func (c *Client) MarginBalance() (resp []MarginAsset, err error) {
+    account, err := c.MarginAccount()
+    for _, asset := range account.UserAssets {
+        if asset.NetAsset != 0 {
+            resp = append(resp, asset)
+        }
     }
 
     return
-}
-
-func DecodeJSON(input []byte) (map[string]interface{}) {
-    var data map[string]interface{}
-    err := json.Unmarshal(input, &data)
-    if err != nil {
-        panic(err)
-    }
-    return data
 }
 
 func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect string) (resp TradeOrder, err error) {
@@ -636,6 +504,138 @@ func (c *Client) OrderMargin(quantity, quoteOrderQty float64, side, sideEffect s
     return
 }
 
+func (c *Client) queryAPI(method, endpoint string, params map[string]string, auth bool) (body []byte, err error) {
+    refresh := 4
+    var res *http.Response
+    for refresh > 0 {
+        res, err = c.do(method, endpoint, params, auth)
+        if err != nil {
+            return
+        }
+        defer res.Body.Close()
+        body, err = ioutil.ReadAll(res.Body)
+        if err != nil {
+            return
+        }
+
+        var errorApi ErrorApi
+        if err = json.Unmarshal(body, &errorApi); err != nil {
+            return
+        }
+        if errorApi.Code != 0 {
+            file, _ := openLogFile("./log/errors.log")
+            infoLog := log.New(file, "", log.LstdFlags|log.Lmicroseconds)
+            infoLog.Println(endpoint, string(body))
+            fmt.Println("API Error", errorApi.Code)
+            switch errorApi.Code {
+            case -1003: {
+                time.Sleep(5 * time.Minute)
+                os.Exit(-1003)
+            }
+            case -1015: {
+                time.Sleep(1 * time.Minute)
+                os.Exit(-1015)
+            }
+            default: {
+                time.Sleep(10 * time.Second)
+                refresh--
+            }
+            }
+        } else {
+            refresh = 0
+        }
+    }
+
+    return
+}
+
+func (c *Client) RepayLoan(amount float64) (resp interface{}, err error) {
+    params := make(map[string]string)
+    params["asset"] = BaseSymbol.Asset
+    params["amount"] = float2str(amount)
+    body, err := c.queryAPI(http.MethodPost, "/sapi/v1/margin/repay", params, true)
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+
+    return
+}
+
+func (c *Client) returnCandles() (candles []Candle) {
+    return c.Candles
+}
+
+func (c *Candle) Set(openTime int64, open, high, low, close, volume float64, closeTime int64, quoteAssetVolume float64, tradesNumber int64, takerBuyBaseAssetVolume, takerBuyQuoteAssetVolume, ignore float64) {
+    c.OpenTime = openTime
+    c.Open = open
+    c.High = high
+    c.Low = low
+    c.Close = close
+    c.Volume = volume
+    c.CloseTime = closeTime
+    c.QuoteAssetVolume = quoteAssetVolume
+    c.TradesNumber = tradesNumber
+    c.TakerBuyBaseAssetVolume = takerBuyBaseAssetVolume
+    c.TakerBuyQuoteAssetVolume = takerBuyQuoteAssetVolume
+    c.Ignore = ignore
+}
+
+func (c *Client) SetTimeframe(start, end int64) {
+    c.SetTimeframeOffset(start, end, 500)
+
+    return
+}
+
+func (c *Client) SetTimeframeOffset(start, end int64, offset int) {
+    start = start - int64(offset * intervals[c.Interval])
+    c.TimeStart = strconv.FormatInt(start, 10)
+    c.TimeEnd = strconv.FormatInt(end, 10)
+
+    c.countIntervals()
+
+    return
+}
+
+func (c *Client) SpotAccount() (resp SpotAccount, err error) {
+    body, err := c.queryAPI(http.MethodGet, "/api/v3/account", nil, true)
+    if err = json.Unmarshal(body, &resp); err != nil {
+        return resp, err
+    }
+    return
+}
+
+func (c *Client) SpotBalance() (resp []SpotAsset, err error) {
+    account, err := c.SpotAccount()
+    for _, asset := range account.Balances {
+        if asset.Free != 0 || asset.Locked != 0 {
+            resp = account.Balances
+        }
+    }
+
+    return
+}
+
+func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {
+    command := strings.Split(signal, " ")
+
+    quantity = RoundTradeQuantity(quantity)
+    quoteOrderQty = RoundTradeQuantity(quoteOrderQty)
+
+    if command[1] == "SHORT" {
+        if command[0] == "Close" || command[0] == "Exit" {
+            c.OrderMargin(quantity, 0, "BUY", "AUTO_REPAY")
+        } else if (command[0] == "Order") {
+            c.OrderMargin(0, quoteOrderQty, "SELL", "MARGIN_BUY")
+        }
+    } else if command[1] == "LONG" {
+        if command[0] == "Close" || command[0] == "Exit" {
+            c.OrderMargin(quantity, 0, "SELL", "NO_SIDE_EFFECT")
+        } else if (command[0] == "Order") {
+            c.OrderMargin(0, quoteOrderQty, "BUY", "NO_SIDE_EFFECT")
+        }
+    }
+}
+
 func GetBaseQuantity() float64 {
     return TradingPairWallet.BaseQuantity
 }
@@ -644,15 +644,23 @@ func GetQuoteQuantity() float64 {
     return TradingPairWallet.QuoteQuantity
 }
 
-func RoundTradeQuantity(input float64) (output float64) {
-    power := math.Round(1 / exchange["stepSize"])
-    output = float64(int(input * power)) / power
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
 
     return
 }
 
-func float2str(input float64) (output string) {
-    output = strconv.FormatFloat(input, 'f', -1, 64)
+func openLogFile(path string) (logFile *os.File, err error) {
+    logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return
+}
+
+func RoundTradeQuantity(input float64) (output float64) {
+    power := math.Round(1 / exchange["stepSize"])
+    output = float64(int(input * power)) / power
 
     return
 }
@@ -681,37 +689,16 @@ func SetConfig(base, quote, interval string) {
     }
 }
 
-func str2int(input string) (output int64) {
-    output, _ = strconv.ParseInt(input, 10, 64)
-
+func str2float(input string) (res float64) {
+    res, err := strconv.ParseFloat(input, 64);
+    if err != nil {
+        panic(err)
+    }
     return
 }
 
-func (c *Client) Trade(quantity, quoteOrderQty float64, signal string) {
-    command := strings.Split(signal, " ")
+func str2int(input string) (output int64) {
+    output, _ = strconv.ParseInt(input, 10, 64)
 
-    quantity = RoundTradeQuantity(quantity)
-    quoteOrderQty = RoundTradeQuantity(quoteOrderQty)
-
-    if command[1] == "SHORT" {
-        if command[0] == "Close" || command[0] == "Exit" {
-            c.OrderMargin(quantity, 0, "BUY", "AUTO_REPAY")
-        } else if (command[0] == "Order") {
-            c.OrderMargin(0, quoteOrderQty, "SELL", "MARGIN_BUY")
-        }
-    } else if command[1] == "LONG" {
-        if command[0] == "Close" || command[0] == "Exit" {
-            c.OrderMargin(quantity, 0, "SELL", "NO_SIDE_EFFECT")
-        } else if (command[0] == "Order") {
-            c.OrderMargin(0, quoteOrderQty, "BUY", "NO_SIDE_EFFECT")
-        }
-    }
-}
-
-func openLogFile(path string) (logFile *os.File, err error) {
-    logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-    if err != nil {
-        return nil, err
-    }
     return
 }

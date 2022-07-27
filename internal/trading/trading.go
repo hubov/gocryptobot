@@ -2,17 +2,17 @@ package trading
 
 import (
 	"encoding/csv"
-	"github.com/hubov/gocryptobot/internal/strategy"
-	"time"
 	"fmt"
-	"io"
-	"strconv"
-	"strings"
-	"math"
-	"os"
-	"log"
+	"github.com/hubov/gocryptobot/internal/strategy"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"io"
+	"log"
+	"math"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type (
@@ -73,62 +73,16 @@ func lastFileLine(fileHandle *os.File) string {
     return line
 }
 
-func SetSymbol(tradingSymbol string) {
-	symbol = tradingSymbol
+func openLogFile(path string) (logFile *os.File, err error) {
+	logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+    if err != nil {
+        return nil, err
+    }
+    return
 }
 
-func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool, data []map[string]string, nowFileName string) {
-	SimWallet.BaseQuantity = 0
-	SimWallet.QuoteQuantity = 1000
-	symbol = base + quote
-
-	strategy.SetConfig(base, quote, interval)
-
-	if !startTime.IsZero() && !endTime.IsZero() {
-		startTimeUnix := startTime.UnixMilli()
-		endTimeUnix := endTime.UnixMilli()
-
-		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
-		strategy.GetData(false, data)
-		candles := strategy.Candles
-		intervalsCount := int(strategy.IntervalsCount)
-
-		var intervalIterators = make(map[string]int)
-		if len(candles) > 1 {
-			for key, _ := range candles {
-				if key != strategy.Client.Interval {
-					intervalIterators[key] = 1
-				}
-			}
-		}
-
-		var i int = 501
-		for i < intervalsCount {
-			strategy.Update[strategy.Client.Interval] = candles[strategy.Client.Interval][0:i]
-			for key, value := range intervalIterators {
-				for candles[key][value].CloseTime < candles[strategy.Client.Interval][i].OpenTime {
-					value++
-					intervalIterators[key] = value
-				}
-				strategy.Update[key] = candles[key][0:intervalIterators[key]]
-			}
-
-			strategy.SetData(strategy.Update)
-			strategy.SymbolWorth = SimWallet.BaseQuantity
-			signals := strategy.GetSignal(false)
-			for k, signal := range signals {
-				if (signal != "WAIT") {
-					fmt.Println(".", time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
-					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime, tradeLog, nowFileName)
-				}
-			}
-			i++
-		}
-
-		fmt.Println(SimWallet)
-	} else {
-		strategy.GetSignal(false)
-	}
+func SetSymbol(tradingSymbol string) {
+	symbol = tradingSymbol
 }
 
 func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool, nowFileName string) {
@@ -213,6 +167,60 @@ func SimOrder(signal string, price float64, tradeTime int64, tradeLog bool, nowF
 	}
 }
 
+func Simulation(startTime, endTime time.Time, base, quote, interval string, tradeLog bool, data []map[string]string, nowFileName string) {
+	SimWallet.BaseQuantity = 0
+	SimWallet.QuoteQuantity = 1000
+	symbol = base + quote
+
+	strategy.SetConfig(base, quote, interval)
+
+	if !startTime.IsZero() && !endTime.IsZero() {
+		startTimeUnix := startTime.UnixMilli()
+		endTimeUnix := endTime.UnixMilli()
+
+		strategy.SetTimeframe(startTimeUnix, endTimeUnix)
+		strategy.GetData(false, data)
+		candles := strategy.Candles
+		intervalsCount := int(strategy.IntervalsCount)
+
+		var intervalIterators = make(map[string]int)
+		if len(candles) > 1 {
+			for key, _ := range candles {
+				if key != strategy.Client.Interval {
+					intervalIterators[key] = 1
+				}
+			}
+		}
+
+		var i int = 501
+		for i < intervalsCount {
+			strategy.Update[strategy.Client.Interval] = candles[strategy.Client.Interval][0:i]
+			for key, value := range intervalIterators {
+				for candles[key][value].CloseTime < candles[strategy.Client.Interval][i].OpenTime {
+					value++
+					intervalIterators[key] = value
+				}
+				strategy.Update[key] = candles[key][0:intervalIterators[key]]
+			}
+
+			strategy.SetData(strategy.Update)
+			strategy.SymbolWorth = SimWallet.BaseQuantity
+			signals := strategy.GetSignal(false)
+			for k, signal := range signals {
+				if (signal != "WAIT") {
+					fmt.Println(".", time.UnixMilli(candles[strategy.Client.Interval][i].OpenTime).UTC(), strategy.Response[k])
+					SimOrder(signal, candles[strategy.Client.Interval][i].Open, candles[strategy.Client.Interval][i].OpenTime, tradeLog, nowFileName)
+				}
+			}
+			i++
+		}
+
+		fmt.Println(SimWallet)
+	} else {
+		strategy.GetSignal(false)
+	}
+}
+
 func Trade() {
 	var tradeTime bool
 
@@ -283,12 +291,4 @@ func TriggerTrade(signal string) {
 
 	fmt.Println("TRADE!!!")
 	strategy.Trade(command[0] + " " + command[1])
-}
-
-func openLogFile(path string) (logFile *os.File, err error) {
-	logFile, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-    if err != nil {
-        return nil, err
-    }
-    return
 }

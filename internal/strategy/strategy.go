@@ -1,59 +1,52 @@
 package strategy
 
 import (
-	"github.com/hubov/gocryptobot/internal/binance"
+	"fmt"
+    "github.com/hubov/gocryptobot/internal/binance"
     "github.com/cinar/indicator"
-	"time"
 	"log"
     "math"
-    "fmt"
     // "os"
     "strconv"
+    "time"
 )
 
 var (
 	Candles = make(map[string][]binance.Candle)
-	Update = make(map[string][]binance.Candle)
-	Client *binance.Client
+    Client *binance.Client
+    Data []float64
+    DataExitLow []float64
+    DataExitLowLen int
+    DataExitHigh []float64
+    DataExitHighLen int
+    DataLen int
 	defaultTimeout time.Duration
+    ExitPrice float64
+    IntervalsCount int64
+    LastBuyPrice float64
+    PivotPoint float64
+    PivotSignal = make(map[int][]int64)
+    Response []string
+    Rsi []float64
+    RsiLen int
+    R1 float64
+    R2 float64
+    R3 float64
+    Sma []float64
+    SymbolWorth float64
+    S1 float64
+    S2 float64
+    S3 float64
 	timeStart int64
 	timeEnd int64
-	IntervalsCount int64
-	Data []float64
-	DataLen int
-	Sma []float64
-	Rsi []float64
-	RsiLen int
-	PivotPoint float64
-	S1 float64
-	R1 float64
-	S2 float64
-	R2 float64
-	S3 float64
-	R3 float64
-	LastBuyPrice float64
-	SymbolWorth float64
-	PivotSignal = make(map[int][]int64)
-	DataExitLow []float64
-	DataExitLowLen int
-	DataExitHigh []float64
-	DataExitHighLen int
-	ExitPrice float64
-	Response []string
+    Update = make(map[string][]binance.Candle)
 )
 
-func GetBaseQuantity() float64 {
-    return binance.GetBaseQuantity()
-}
-
-func GetQuoteQuantity() float64 {
-    return binance.GetQuoteQuantity()
-}
-
-func SetTimeframe(start, end int64) {
-    timeStart = start
-    timeEnd = end
-}
+// #######################################################################################################################
+//
+//                                                          STRATEGY PART
+//
+// #######################################################################################################################
 
 func GetData(isLive bool, data []map[string]string) {
     defaultTimeout := time.Second * 10
@@ -84,14 +77,7 @@ func GetData(isLive bool, data []map[string]string) {
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Println(len(client1D.Candles))
-// os.Exit(100)
     Candles["1d"] = client1D.Candles
-}
-
-func SetData(candles map[string][]binance.Candle) {
-    Candles = candles
-    Response = nil
 }
 
 func Calculate() {
@@ -145,35 +131,6 @@ func Calculate() {
     // R3 = data1D.High + 2 * (PivotPoint - data1D.Low)
 }
 
-func GetValues(interval string, period int, periodType string) (result []float64) {
-    result = GetValuesParams(interval, period, periodType)
-
-    return
-}
-
-func GetValuesParams(interval string, period int, periodType string) (result []float64) {
-    var price float64
-    len := len(Candles[interval])
-    i := len - period
-    for i < len {
-        switch (periodType) {
-        case "close": 
-            price = Candles[interval][i].Close
-        case "open":
-            price = Candles[interval][i].Open
-        case "low":
-            price = Candles[interval][i].Low
-        case "high": 
-            price = Candles[interval][i].High
-        }
-
-        result = append(result, price)
-        i++
-    }
-
-    return
-}
-
 func LongLimit() (result float64) {
     result = LastBuyPrice * 1.1
 
@@ -182,49 +139,6 @@ func LongLimit() (result float64) {
 
 func LongStop() (result float64) {
     result = LastBuyPrice * 0.95
-
-    return
-}
-
-func ShortLimit() (result float64) {
-    result = LastBuyPrice * 0.9
-
-    return
-}
-
-func ShortStop() (result float64) {
-    result = LastBuyPrice * 1.05
-
-    return
-}
-
-func SignalOrderLong() (result bool) {
-    var tests []bool
-    result = true
-
-    if Sma[len(Sma)-1] < Data[DataLen-1] {
-        tests = append(tests, true)
-    } else {
-        tests = append(tests, false)
-    }
-
-    if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
-        tests = append(tests, true)
-    } else {
-        tests = append(tests, false)
-    }
-
-    if PivotSignal[len(PivotSignal) - 1][0] == 1 {
-        tests = append(tests, true)
-    } else {
-        tests = append(tests, false)
-    }
-
-    for _, test := range tests {
-        if test == false {
-            result = false
-        }
-    }
 
     return
 }
@@ -273,6 +187,49 @@ func SingalExitLong() (result bool) {
     }
 
     return result
+}
+
+func ShortLimit() (result float64) {
+    result = LastBuyPrice * 0.9
+
+    return
+}
+
+func ShortStop() (result float64) {
+    result = LastBuyPrice * 1.05
+
+    return
+}
+
+func SignalOrderLong() (result bool) {
+    var tests []bool
+    result = true
+
+    if Sma[len(Sma)-1] < Data[DataLen-1] {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    if Rsi[RsiLen-2] < 5 && Rsi[RsiLen-1] >= 5 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    if PivotSignal[len(PivotSignal) - 1][0] == 1 {
+        tests = append(tests, true)
+    } else {
+        tests = append(tests, false)
+    }
+
+    for _, test := range tests {
+        if test == false {
+            result = false
+        }
+    }
+
+    return
 }
 
 func SignalOrderShort() (result bool) {
@@ -352,6 +309,55 @@ func SingalExitShort() (result bool) {
     return result
 }
 
+// #######################################################################################################################
+//
+//                                                         END OF STRATEGY PART
+//
+// #######################################################################################################################
+
+func float2str(input float64) (output string) {
+    output = strconv.FormatFloat(input, 'f', -1, 64)
+
+    return
+}
+
+func GetBaseQuantity() float64 {
+    return binance.GetBaseQuantity()
+}
+
+func GetQuoteQuantity() float64 {
+    return binance.GetQuoteQuantity()
+}
+
+func GetValues(interval string, period int, periodType string) (result []float64) {
+    result = GetValuesParams(interval, period, periodType)
+
+    return
+}
+
+func GetValuesParams(interval string, period int, periodType string) (result []float64) {
+    var price float64
+    len := len(Candles[interval])
+    i := len - period
+    for i < len {
+        switch (periodType) {
+        case "close": 
+            price = Candles[interval][i].Close
+        case "open":
+            price = Candles[interval][i].Open
+        case "low":
+            price = Candles[interval][i].Low
+        case "high": 
+            price = Candles[interval][i].High
+        }
+
+        result = append(result, price)
+        i++
+    }
+
+    return
+}
+
 func GetSignal(isLive bool) (signals []string) {
     Calculate()
 
@@ -390,12 +396,6 @@ func GetSignal(isLive bool) (signals []string) {
     return
 }
 
-func float2str(input float64) (output string) {
-    output = strconv.FormatFloat(input, 'f', -1, 64)
-
-    return
-}
-
 func int2str(input int64) (output string) {
     output = strconv.FormatInt(input, 10)
 
@@ -404,6 +404,16 @@ func int2str(input int64) (output string) {
 
 func SetConfig(base, quote, interval string) {
     binance.SetConfig(base, quote, interval)
+}
+
+func SetData(candles map[string][]binance.Candle) {
+    Candles = candles
+    Response = nil
+}
+
+func SetTimeframe(start, end int64) {
+    timeStart = start
+    timeEnd = end
 }
 
 func Trade(signal string) {
